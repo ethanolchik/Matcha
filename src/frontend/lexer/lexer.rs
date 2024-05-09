@@ -409,7 +409,7 @@ mod tests {
 
     #[test]
     fn test_lexer() {
-        let filename = "C:/Users/OLCHIK/Matcha/src/test.lang";
+        let filename = "C:/Users/OLCHIK/Matcha/src/test.mt";
         let source = match std::fs::read_to_string(&filename) {
             Ok(content) => content,
             Err(err) => panic!("Failed to read file {}: {}", &filename, err), // Error: Failed to read file

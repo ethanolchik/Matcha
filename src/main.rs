@@ -8,7 +8,7 @@ use std::fmt::write;
 use utils::compile::compile;
 
 fn main() {
-    let statements = compile(String::from("C:/Users/OLCHIK/Matcha/test/src/test.lang"));
+    let statements = compile(String::from("C:/Users/OLCHIK/Matcha/test/src/test.mt"));
     let mut output = String::new();
     write(&mut output, format_args!("{:#?}", statements)).unwrap();
     
