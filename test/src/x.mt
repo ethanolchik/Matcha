@@ -1,6 +1,10 @@
-struct Test: export {
+struct Test {
     x: pub Float32
 }
 
-const PI: export Float32 = 3.14;
+const PI Float32 = 3.14;
 
+export {
+    Test,
+    PI
+}
