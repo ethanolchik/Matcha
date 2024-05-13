@@ -2,7 +2,7 @@
 🍵 A caffeinated programming language for the modern world.
 
 # Progress
-Matcha is currently WIP. The compiler development is incomplete, however, you can view the current source code on the dev branch.
+Matcha is currently WIP. The compiler development is incomplete, however, [you can view the current source code on the dev branch](https://github.com/ethanolchik/Matcha/blob/dev/).
 
 Here is a roadmap:
 - [x] Lexical Analysis
