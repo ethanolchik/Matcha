@@ -1,14 +1,40 @@
+module test;
+
+import x;
+
+struct Dog {
+    name: String,
+    colour: Colour
+}
+
+enum Colour {
+    RED, GREEN, BLUE
+}
+
+func new_dog(name: String, colour: Colour): Dog {
+    return Dog {
+        name: name,
+        colour: colour
+    };
+}
+
+func (d: Dog) bark(): pub String {
+    return "Bark!";
+}
+
 func main(): Void {
-    var z: Test = Test { x: 3 };
-    z.x;
+    var myDog: Dog = new_dog("Foo", Colour.RED);
+
+    myDog.bark();
+
+    var t: x.Test;
 }
 
-struct A {
-    x: Float32
-}
+export {
+    Dog,
+    Colour,
+    
+    new_dog,
 
-struct Test {
-    x: Int32
+    main
 }
-
-const AA: A = A { x: 3.14 };
