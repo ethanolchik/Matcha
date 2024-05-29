@@ -4,6 +4,7 @@
 
 pub mod types;
 pub mod resolver;
+pub mod first_pass;
 
 //> Imports
 
@@ -16,8 +17,20 @@ use crate::{
     }
 };
 
+use self::types::TypeKind;
+
 //> Definitions
 
+/// DeclarationKind enum<br>
+/// This enum is used to store the kind of declaration.<br>
+#[derive(Debug)]
+pub enum DeclarationKind {
+    Function(Function),
+    Method(Function),
+    Variable(Variable),
+    Struct(Struct),
+    Enum(Enum),
+}
 
 /// SymbolTable(filename) struct
 /// This struct is used to store the current environment in the program as well as forward declarations.
@@ -26,14 +39,12 @@ pub struct SymbolTable {
 
     pub import_handler: ImportHandler,
 
-    pub forward_decl_types: Vec<Type>,
-    pub forward_decl_functions: Vec<Function>,
-    pub forward_decl_constants: Vec<Variable>,
+    pub decl_queue: Vec<DeclarationKind>,
 
-    pub filename: String
+    pub filename: String,
+
+    pub exported: Vec<Box<Identifier>>
 }
-
-
 
 /// Environment(name, parent, filename) struct<br>
 /// This struct is used to store the current environment in the program.<br>
@@ -48,11 +59,7 @@ pub struct Environment {
     pub variables: Vec<Symbol<Variable>>,
     pub structs: Vec<Symbol<Struct>>,
     pub enums: Vec<Symbol<Enum>>,
-
-    // Forward Declarations allow the user to reference a type, function, or constant before it is defined.
-    pub forward_decl_types: Vec<Type>,
-    pub forward_decl_functions: Vec<Function>,
-    pub forward_decl_constants: Vec<Variable>,
+    pub modules: Vec<MatchaModule>,
 
     pub parent: Option<Box<Environment>>,
 
@@ -60,7 +67,6 @@ pub struct Environment {
 
     pub sid: SymbolIdGen
 }
-
 
 /// Symbol<T: Node + Clone>(value, s, kind) struct<br>
 /// This struct is used to store a symbol in the environment. <br>
@@ -78,7 +84,6 @@ pub struct SymbolIdGen {
     pub cur: i32
 }
 
-
 /// SymbolKind enum <br>
 /// This enum is used to store the kind of symbol.<br>
 /// impl Clone PartialEq
@@ -91,6 +96,13 @@ pub enum SymbolKind {
     Struct,
     Enum,
     Type
+}
+
+pub struct Typechecker<T>
+where T: Node{
+    pub queue: Vec<T>,
+
+    pub had_error: bool
 }
 
 //TODO: Add docs
@@ -108,11 +120,7 @@ impl Environment {
             variables: Vec::new(),
             structs: Vec::new(),
             enums: Vec::new(),
-
-            forward_decl_types: Vec::new(),
-            forward_decl_functions: Vec::new(),
-            forward_decl_constants: Vec::new(),
-
+            modules: Vec::new(),
             parent,
 
             filename,
@@ -155,47 +163,97 @@ impl Environment {
     }
 
     pub fn edit_type(&mut self, id: i32, type_: Type) {
+        let mut x = false;
         for symbol in self.types.iter_mut() {
             if symbol.id == id {
-                symbol.edit(type_);
+                symbol.edit(type_.clone());
+                x = true;
                 break;
             }
+        }
+
+        if x { return }
+
+        if self.parent.is_some() {
+            self.parent.clone().unwrap().edit_type(id, type_);
+        } else {
+            panic!("This should never happen: Cannot find type to edit.")
         }
     }
 
     pub fn edit_function(&mut self, id: i32, function: Function) {
+        let mut x = false;
         for symbol in self.functions.iter_mut() {
             if symbol.id == id {
-                symbol.edit(function);
+                symbol.edit(function.clone());
+                x = true;
                 break;
             }
+        }
+
+        if x { return }
+
+        if self.parent.is_some() {
+            self.parent.clone().unwrap().edit_function(id, function);
+        } else {
+            panic!("This should never happen: Cannot find function to edit.")
         }
     }
 
     pub fn edit_variable(&mut self, id: i32, variable: Variable) {
+        let mut x = false;
         for symbol in self.variables.iter_mut() {
             if symbol.id == id {
-                symbol.edit(variable);
+                symbol.edit(variable.clone());
+                x = true;
                 break;
             }
+        }
+
+        if x { return }
+
+        if self.parent.is_some() {
+            self.parent.clone().unwrap().edit_variable(id, variable);
+        } else {
+            panic!("This should never happen: Cannot find variable to edit.")
         }
     }
 
     pub fn edit_struct(&mut self, id: i32, struct_: Struct) {
+        let mut x = false;
         for symbol in self.structs.iter_mut() {
             if symbol.id == id {
-                symbol.edit(struct_);
+                symbol.edit(struct_.clone());
+                x = true;
                 break;
             }
+        }
+
+        if x { return }
+
+        if self.parent.is_some() {
+            self.parent.clone().unwrap().edit_struct(id, struct_);
+        } else {
+            panic!("This should never happen: Cannot find struct to edit.")
         }
     }
 
     pub fn edit_enum(&mut self, id: i32, enum_: Enum) {
+        let mut x = false;
         for symbol in self.enums.iter_mut() {
             if symbol.id == id {
-                symbol.edit(enum_);
+                symbol.edit(enum_.clone());
+                x = true;
                 break;
             }
+        }
+
+        if x { return }
+
+        if self.parent.is_some() {
+            self.parent.clone().unwrap().edit_enum(id, enum_);
+        } else {
+            panic!("This should never happen: Cannot find enum to edit.")
         }
     }
 
@@ -204,6 +262,10 @@ impl Environment {
             if symbol.id == id {
                 return Some(symbol.get());
             }
+        }
+
+        if self.parent.is_some() {
+            return self.parent.as_ref().unwrap().get_type(id);
         }
 
         None
@@ -216,6 +278,10 @@ impl Environment {
             }
         }
 
+        if self.parent.is_some() {
+            return self.parent.as_ref().unwrap().get_function(id);
+        }
+
         None
     }
 
@@ -224,6 +290,10 @@ impl Environment {
             if symbol.id == id {
                 return Some(symbol.get());
             }
+        }
+
+        if self.parent.is_some() {
+            return self.parent.as_ref().unwrap().get_variable(id);
         }
 
         None
@@ -236,6 +306,10 @@ impl Environment {
             }
         }
 
+        if self.parent.is_some() {
+            return self.parent.as_ref().unwrap().get_struct(id);
+        }
+
         None
     }
 
@@ -246,7 +320,214 @@ impl Environment {
             }
         }
 
+        if self.parent.is_some() {
+            return self.parent.as_ref().unwrap().get_enum(id);
+        }
+
         None
+    }
+
+    pub fn get_struct_by_name(&self, name: String) -> Option<Symbol<Struct>> {
+        for symbol in self.structs.iter() {
+            let struct_ = symbol.get();
+            let struct_name = match &struct_.name.kind {
+                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                _ => unreachable!()
+            };
+            if struct_name == name {
+                return Some(symbol.clone());
+            }
+        }
+        
+        if self.parent.is_some() {
+            return self.parent.as_ref().unwrap().get_struct_by_name(name);
+        }
+
+        None
+    }
+
+    pub fn get_enum_by_name(&self, name: String) -> Option<Symbol<Enum>> {
+        for symbol in self.enums.iter() {
+            let enum_ = symbol.get();
+            let enum_name = match &enum_.name.kind {
+                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                _ => unreachable!()
+            };
+            if enum_name == name {
+                return Some(symbol.clone());
+            }
+        }
+
+        if self.parent.is_some() {
+            return self.parent.as_ref().unwrap().get_enum_by_name(name);
+        }
+
+        None
+    }
+
+    pub fn var_exists(&self, variable: &Variable) -> bool {
+        for symbol in self.variables.iter() {
+            let var = symbol.get();
+            let n1 = match var.name.kind {
+                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                _ => unreachable!()
+            };
+            let n2 = match &variable.name.kind {
+                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                _ => unreachable!()
+            };
+            if n1 == n2 {
+                return true;
+            }
+        }
+
+        if self.parent.is_some() {
+            return self.parent.as_ref().unwrap().var_exists(variable);
+        }
+
+        false
+    }
+
+    pub fn function_exists(&self, function: &Function) -> bool {
+        for symbol in self.functions.iter() {
+            let f = symbol.get();
+            let n1 = match f.name.kind {
+                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                _ => unreachable!()
+            };
+            let n2 = match &function.name.kind {
+                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                _ => unreachable!()
+            };
+            if n1 == n2 {
+                return true;
+            }
+        }
+
+        if self.parent.is_some() {
+            return self.parent.as_ref().unwrap().function_exists(function);
+        }
+
+        false
+    }
+
+    pub fn struct_exists(&self, struct_: &Struct) -> bool {
+        for symbol in self.structs.iter() {
+            let s = symbol.get();
+            let n1 = match s.name.kind {
+                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                _ => unreachable!()
+            };
+            let n2 = match &struct_.name.kind {
+                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                _ => unreachable!()
+            };
+            if n1 == n2 {
+                return true;
+            }
+        }
+
+        if self.parent.is_some() {
+            return self.parent.as_ref().unwrap().struct_exists(struct_);
+        }
+
+        false
+    }
+
+    pub fn enum_exists(&self, enum_: &Enum) -> bool {
+        for symbol in self.enums.iter() {
+            let e = symbol.get();
+            let n1 = match e.name.kind {
+                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                _ => unreachable!()
+            };
+            let n2 = match &enum_.name.kind {
+                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                _ => unreachable!()
+            };
+            if n1 == n2 {
+                return true;
+            }
+        }
+
+        if self.parent.is_some() {
+            return self.parent.as_ref().unwrap().enum_exists(enum_);
+        }
+
+        false
+    }
+
+    pub fn get_type_by_name(&self, name: String) -> Option<Symbol<Type>> {
+        for symbol in self.types.iter() {
+            let type_ = symbol.get();
+            let type_name = type_.to_string();
+            if type_name == name {
+                return Some(symbol.clone());
+            }
+        }
+
+        None
+    }
+
+    // TODO: Optimise
+    pub fn lookup(&self, name: String) -> bool {
+        for symbol in self.types.iter() {
+            let type_ = symbol.get();
+            let type_name = type_.to_string();
+            if type_name == name {
+                return true;
+            }
+        }
+
+        for symbol in self.functions.iter() {
+            let function = symbol.get();
+            let function_name = match function.name.kind {
+                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                _ => unreachable!()
+            };
+            if function_name == name {
+                return true;
+            }
+        }
+
+        for symbol in self.variables.iter() {
+            let variable = symbol.get();
+            let variable_name = match variable.name.kind {
+                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                _ => unreachable!()
+            };
+            if variable_name == name {
+                return true;
+            }
+        }
+
+        for symbol in self.structs.iter() {
+            let struct_ = symbol.get();
+            let struct_name = match struct_.name.kind {
+                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                _ => unreachable!()
+            };
+            if struct_name == name {
+                return true;
+            }
+        }
+
+        for symbol in self.enums.iter() {
+            let enum_ = symbol.get();
+            let enum_name = match enum_.name.kind {
+                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                _ => unreachable!()
+            };
+            if enum_name == name {
+                return true;
+            }
+        }
+
+        if self.parent.is_some() {
+            return self.parent.as_ref().unwrap().lookup(name);
+        }
+
+        false
     }
 }
 
@@ -261,11 +542,7 @@ impl Clone for Environment {
             variables: self.variables.clone(),
             structs: self.structs.clone(),
             enums: self.enums.clone(),
-
-            forward_decl_types: self.forward_decl_types.clone(),
-            forward_decl_functions: self.forward_decl_functions.clone(),
-            forward_decl_constants: self.forward_decl_constants.clone(),
-
+            modules: self.modules.clone(),
             parent: self.parent.clone(),
 
             filename: self.filename.clone(),
@@ -278,20 +555,31 @@ impl Clone for Environment {
 
 }
 
+impl Clone for DeclarationKind {
+    fn clone(&self) -> Self {
+        match self {
+            DeclarationKind::Function(function) => DeclarationKind::Function(function.clone()),
+            DeclarationKind::Method(method) => DeclarationKind::Method(method.clone()),
+            DeclarationKind::Variable(variable) => DeclarationKind::Variable(variable.clone()),
+            DeclarationKind::Struct(struct_) => DeclarationKind::Struct(struct_.clone()),
+            DeclarationKind::Enum(enum_) => DeclarationKind::Enum(enum_.clone())
+        }
+    }
+}
+
 impl SymbolTable {
     pub fn new(filename: String) -> Self {
         Self {
             envs: vec![Environment::new(String::from("global"), None, None, filename.clone())],
             import_handler: ImportHandler::new(filename.clone()),
-            forward_decl_types: vec![],
-            forward_decl_functions: vec![],
-            forward_decl_constants: vec![],
-            filename
+            decl_queue: vec![],
+            filename,
+            exported: vec![]
         }
     }
 
     pub fn push(&mut self, name: String) {
-        let prev = self.prev();
+        let prev = self.current();
         self.envs.push(
             Environment::new(
                 name,
@@ -304,60 +592,126 @@ impl SymbolTable {
 
     pub fn pop(&mut self) {
         // Should never be None as the global environment is always present
-        let mut x = self.envs.pop().unwrap();
-        self.merge_fd(&mut x);
+        self.envs.pop().unwrap();
     }
 
-    fn merge_fd(&mut self, env: &mut Environment) {
-        let fd = self.forward_decl_types.clone();
-        for type_ in &env.forward_decl_types {
-            // TODO: check if type is already in forward_decl_types
-            for t in &fd {
-                if t != type_ {
-                    self.forward_decl_types.push(type_.clone());
-                }
-            }
-        }
-
-        let fd = self.forward_decl_functions.clone();
-        for function in &env.forward_decl_functions {
-            let fn_name = match &function.name.kind {
-                ExpressionKind::Identifier(name) => &name.name.lexeme,
-                _ => panic!("This should never happen")
-            };
-            // TODO: check if type is already in forward_decl_types
-            for f in &fd {
-                let name = match &f.name.kind {
-                    ExpressionKind::Identifier(name) => &name.name.lexeme,
-                    _ => panic!("This should never happen")
-                };
-                if name != fn_name {
-                    self.forward_decl_functions.push(function.clone());
-                }
-            }
-        }
-    
-        let fd = self.forward_decl_constants.clone();
-        for consts in &env.forward_decl_constants {
-            let const_name = match &consts.name.kind {
-                ExpressionKind::Identifier(name) => &name.name.lexeme,
-                _ => panic!("This should never happen")
-            };
-            // TODO: check if type is already in forward_decl_types
-            for c in &fd {
-                let name = match &c.name.kind {
-                    ExpressionKind::Identifier(name) => &name.name.lexeme,
-                    _ => panic!("This should never happen")
-                };
-                if name != const_name {
-                    self.forward_decl_constants.push(consts.clone());
-                }
-            }
-        }
+    pub fn current_mut(&mut self) -> &mut Environment {
+        self.envs.last_mut().unwrap()
     }
 
-    fn prev(&self) -> Option<Box<Environment>> {
-        self.envs.last().unwrap().parent.clone()
+    pub fn sort_queue(&mut self) {
+        let mut queue: Vec<DeclarationKind> = vec![];
+        let mut names: Vec<String> = vec![];
+        // TODO: Optimise this
+
+        for decl in &self.decl_queue {
+            match decl {
+                DeclarationKind::Struct(struct_) => {
+                    queue.push(decl.clone());
+
+                    match &struct_.name.kind {
+                        ExpressionKind::Identifier(id) => {
+                            if !names.contains(&id.name.lexeme) {
+                                names.push(id.name.lexeme.clone());
+                            } else {
+                                panic!("Struct {} has the same name as another symbol", id.name.lexeme);
+                            }
+                        }
+                        _ => unreachable!()
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        for decl in &self.decl_queue {
+            match decl {
+                DeclarationKind::Enum(enum_) => {
+                    queue.push(decl.clone());
+                    match &enum_.name.kind {
+                        ExpressionKind::Identifier(id) => {
+                            if !names.contains(&id.name.lexeme) {
+                                names.push(id.name.lexeme.clone());
+                            } else {
+                                panic!("Enum {} has the same name as another symbol", id.name.lexeme);
+                            }
+                        }
+                        _ => unreachable!()
+                    }
+                }
+                _ => {}
+            }
+        }
+        for decl in &self.decl_queue {
+            match decl {
+                DeclarationKind::Function(function) => {
+                    queue.push(decl.clone());
+                    match &function.name.kind {
+                        ExpressionKind::Identifier(id) => {
+                            if !names.contains(&id.name.lexeme) {
+                                names.push(id.name.lexeme.clone());
+                            } else {
+                                panic!("Function {} has the same name as another symbol", id.name.lexeme);
+                            }
+                        }
+                        _ => unreachable!()
+                    }
+                }
+                _ => {}
+            }
+        }
+        for decl in &self.decl_queue {
+            match decl {
+                DeclarationKind::Method(method) => {
+                    queue.push(decl.clone());
+                    match &method.name.kind {
+                        ExpressionKind::Identifier(id) => {
+                            if !names.contains(&id.name.lexeme) {
+                                names.push(id.name.lexeme.clone());
+                            } else {
+                                panic!("Method {} has the same name as another symbol", id.name.lexeme);
+                            }
+                        }
+                        _ => unreachable!()
+                    }
+                }
+                _ => {}
+            }
+        }
+        for decl in &self.decl_queue {
+            match decl {
+                DeclarationKind::Variable(variable) => {
+                    queue.push(decl.clone());
+
+                    match &variable.name.kind {
+                        ExpressionKind::Identifier(id) => {
+                            if !names.contains(&id.name.lexeme) {
+                                names.push(id.name.lexeme.clone());
+                            } else {
+                                panic!("Variable {} has the same name as another symbol", id.name.lexeme);
+                            }
+                        }
+                        _ => unreachable!()
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        self.decl_queue = queue;
+    }
+
+    fn current(&self) -> Option<Box<Environment>> {
+        Some(Box::new(self.envs.last().unwrap().clone()))
+    }
+
+    fn define_module(&mut self, module: MatchaModule) {
+        let env = self.envs.last_mut().unwrap();
+        env.modules.push(module.clone());
+    }
+
+    fn global(&mut self) -> bool {
+        self.envs.len() == 1
     }
 }
 
@@ -404,4 +758,16 @@ impl SymbolIdGen {
         self.cur += 1;
         self.cur
     }
+}
+
+// TODO: Implement typechecker
+
+// Here is an explaination of this function:
+// The unify function takes two types as arguments and returns a single type.
+// The purpose of this function is to unify two types into a single type.
+// This is useful when we have two types that are similar but not exactly the same.
+// For example, if we have two types that are both integers, we can unify them into a single integer type.
+// Lets say we have an Int32 and Int64 type, we need to figure out which type to choose. Here we will choose Int64 as we do not want to lose data.
+fn unify(left: &Type, right: &Type) -> Type {
+    todo!()
 }

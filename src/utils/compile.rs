@@ -8,6 +8,12 @@ use crate::{
     ast::ast::Module, frontend::{
         lexer::lexer::Lexer,
         parser::parser::Parser
+    },
+
+    semantic::{
+        first_pass::FirstPassResolver,
+        resolver::Resolver,
+        SymbolTable
     }
 };
 
@@ -36,6 +42,16 @@ pub fn compile(filename: String) -> Option<Module> {
         return None;
     }
 
+    let mut first_pass_resolver = FirstPassResolver::new(filename.clone());
+    first_pass_resolver.resolve(&statements);
+
+    let mut resolver = Resolver::new(first_pass_resolver.symtable, filename.clone(), source.clone());
+    resolver.resolve(&statements);
+
+    if resolver.had_error {
+        return None;
+    }
+
     Some(statements)
 }
 
@@ -61,4 +77,19 @@ pub fn parse(filename: String) -> Option<Module> {
     }
 
     Some(statements)
+}
+
+pub fn resolve(filename: String, statements: &Module) -> Option<SymbolTable> {
+    let mut first_pass_resolver = FirstPassResolver::new(filename.clone());
+    first_pass_resolver.resolve(statements);
+
+    let mut resolver = Resolver::new(first_pass_resolver.symtable, filename.clone(), String::from(""));
+
+    resolver.resolve(statements);
+
+    if resolver.had_error {
+        return None;
+    }
+
+    Some(resolver.symtable)
 }

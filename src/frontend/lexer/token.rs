@@ -17,7 +17,6 @@ pub struct Token {
     pub pos: usize,
 }
 
-
 /// TokenType enum <br>
 /// impl Debug Copy Clone PartialEq
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -43,7 +42,7 @@ pub enum TokenType {
     Import, Module,
     Var, Func, Struct, Enum,
     True, False, Null,
-    Export, Pub, As, Extern, Static, Const,
+    Export, Pub, As, Extern, Static, Const, // TODO: Depreciate `static` for func (T) n() -> T {}
 
     // Other
     Eof

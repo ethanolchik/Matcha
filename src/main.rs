@@ -11,7 +11,7 @@ fn main() {
     let statements = compile(String::from("C:/Users/OLCHIK/Matcha/test/src/test.mt"));
     let mut output = String::new();
     write(&mut output, format_args!("{:#?}", statements)).unwrap();
-    
+
     // write to file
     let output_filename = "C:/Users/OLCHIK/Matcha/test/src/test.ast";
     match std::fs::write(&output_filename, output) {

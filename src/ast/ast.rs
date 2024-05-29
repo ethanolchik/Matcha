@@ -184,8 +184,8 @@ pub struct Function {
     pub body: Box<Statement>,
 
     pub is_method: bool,
-    pub struct_name: Option<Expression>,
-    pub struct_ref_name: Option<Expression>
+    pub obj_name: Option<Expression>,
+    pub obj_ref_name: Option<Expression>
 }
 
 #[derive(Clone, Debug)]
@@ -239,7 +239,7 @@ pub struct Block {
 
 #[derive(Clone, Debug)]
 pub struct Export {
-    pub statements: Vec<Box<Statement>>
+    pub statements: Vec<Box<Identifier>>
 }
 
 #[derive(Clone, Debug)]
