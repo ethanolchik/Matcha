@@ -50,24 +50,50 @@ impl Parser {
             format!("Expected module declaration at the beginning of the file, got {:?}", self.peek())
         );
 
-        let mut name = self.expect(
+        let name = self.expect(
             TokenType::Identifier,
             format!("Expected module name after 'module', got {:?}", self.peek())
         );
 
-        while self.match_token(vec![TokenType::Dot]) {
-            let next = self.expect(
-                TokenType::Identifier,
-                format!("Expected module name after '.', got {:?}", self.peek())
-            );
+        // while self.match_token(vec![TokenType::Dot]) {
+        //     let next = self.expect(
+        //         TokenType::Identifier,
+        //         format!("Expected module name after '.', got {:?}", self.peek())
+        //     );
 
-            name.lexeme += format!(".{}", next.lexeme).as_str();
+        //     name.lexeme += format!(".{}", next.lexeme).as_str();
+        // }
+
+        let s = self.filename.split("/").collect::<Vec<&str>>();
+        let f = *s[s.len()-1].split(".").collect::<Vec<&str>>().first().unwrap();
+
+        if (name.lexeme.as_str() == f)
+           || (name.lexeme.as_str() == s[s.len()-2]) {
+            // do nothing
+        } else {
+            self.error(
+                name.clone(),
+                format!(
+                    "Module name {:?} does not match file name {:?} or file's parent directory name {:?}.",
+                    name.lexeme, f,
+                    s[s.len()-2]
+                ),
+                None
+            );
         }
 
+        if name.lexeme.len() > 20 {
+            self.error(
+                name.clone(),
+                format!("Module name is {:?} characters long which exceeds the 20 character limit.", name.lexeme.len()),
+                None
+            );
+        }
+        
         self.expect(
             TokenType::Semicolon,
-            format!("Expected ';' after module name, got {:?}.\nNote: the first module declaration cannot be a module block.", self.peek())
-        );
+            format!("Expected ';' after module name, got {:?}.", self.peek())
+        ); 
 
         let mut module = Module {
             name: Identifier { name },
@@ -195,6 +221,11 @@ impl Parser {
                 format!("Expected struct name, got {:?}", self.peek()).to_string()
             );
 
+            self.expect(
+                TokenType::Colon,
+                format!("Expected ':' after struct name, got {:?}", self.peek()).to_string()
+            );
+
             struct_ref_name = self.expect(
                 TokenType::Identifier,
                 format!("Expected struct reference name, got {:?}", self.peek()).to_string()
@@ -274,7 +305,7 @@ impl Parser {
                 type_,
                 body: Box::new(body),
                 is_method,
-                struct_name: Some(Expression {
+                obj_name: Some(Expression {
                     kind: ExpressionKind::Identifier(Box::new(Identifier {
                         name: struct_name.clone()
                     })),
@@ -286,7 +317,7 @@ impl Parser {
                     },
                     
                 }),
-                struct_ref_name: Some(Expression {
+                obj_ref_name: Some(Expression {
                     kind: ExpressionKind::Identifier(Box::new(Identifier {
                         name: struct_ref_name.clone()
                     })),
@@ -823,11 +854,73 @@ impl Parser {
     }
 
     fn export_block(&mut self) -> Statement {
-        let mut identifiers: Vec<Identifier> = vec![];
-        if self.match_token(vec![TokenType::RightBrace]) {
-            todo!()
+        let start = self.tokens[self.current].clone();
+        let mut identifiers: Vec<Box<Identifier>> = vec![];
+
+        if self.match_token(vec![TokenType::LeftBrace]) {
+            let expr = self.expression();
+
+            match expr.kind {
+                ExpressionKind::Identifier(id) => {
+                    identifiers.push(id);
+                }
+                _ => {
+                    self.error(
+                        self.peek(),
+                        "Expected identifier in export block".to_string(),
+                        None
+                    );
+                }
+            }
+
+            while self.match_token(vec![TokenType::Comma]) {
+                let expr = self.expression();
+
+                match expr.kind {
+                    ExpressionKind::Identifier(id) => {
+                        identifiers.push(id);
+                    }
+                    _ => {
+                        self.error(
+                            self.peek(),
+                            "Expected identifier in export block".to_string(),
+                            None
+                        );
+                    }
+                }
+            }
+
+            self.expect(
+                TokenType::RightBrace,
+                format!("Expected closing '}}' after export block, got {:?}", self.peek()).to_string()
+            );
         } else {
-            todo!()
+            let expr = self.expression();
+
+            match expr.kind {
+                ExpressionKind::Identifier(id) => {
+                    identifiers.push(id);
+                }
+                _ => {
+                    self.error(
+                        self.peek(),
+                        "Expected identifier in export block".to_string(),
+                        None
+                    );
+                }
+            }
+        }
+    
+        Statement {
+            kind: StatementKind::Export(Box::new(Export {
+                statements: identifiers
+            })),
+            pos: Position {
+                start_line: start.line,
+                end_line: self.previous().line,
+                start_pos: start.pos,
+                end_pos: self.previous().pos
+            }
         }
     }
 
