@@ -27,7 +27,6 @@ const MATCHA_EXT: &str = ".mt";
 /// ImportHandler(filename) struct<br>
 /// This struct holds all the imports in a file and is used to resolve them.
 pub struct ImportHandler {
-    pub unresolved: Vec<Import>,
     pub resolved: Vec<MatchaModule>,
 
     pub dependency_table: DependencyTable,
@@ -40,29 +39,19 @@ pub struct ImportHandler {
 impl ImportHandler {
     pub fn new(filename: String) -> Self {
         Self {
-            unresolved: Vec::new(),
             resolved: Vec::new(),
             dependency_table: DependencyTable::new(),
             filename
         }
     }
 
-    pub fn add_import(&mut self, path: Import) {
-        self.unresolved.push(path);
-    }
-
-    pub fn resolve_all(&mut self) {
-        for i in 0..self.unresolved.len() {
-            self.resolve_idx(i);
-        }
-    }
-
-    pub fn resolve_idx(&mut self, idx: usize) {
-        let import = &self.unresolved[idx];
+    pub fn process_import(&mut self, import: Import) -> MatchaModule {
         let module = self.resolve_import(import.clone(), &mut vec![]);
 
         self.dependency_table.push_module(module.clone());
-        self.resolved.push(module);
+        self.resolved.push(module.clone());
+
+        module
     }
 
     /// Takes an import AST, breaks it down into a path, and then resolves it into a MatchaModule.<br>
@@ -120,15 +109,17 @@ impl ImportHandler {
             }
         } else {
             // If the path is a file, we can just parse it and get the dependencies.
-
             let program = parse(path.clone().0).unwrap();
 
             for i in program.imports {
                 module.dependencies.push(self.resolve_import(i, cycle));
             }
 
-            for s in program.statements {
-                todo!();
+            // TODO: Create a new symbol with the same name as the module imported. It's children should be the exported symbols in the program.
+            // resolve(path.0, program);
+            
+            for _s in program.statements {
+                todo!()
             }
         }
 
@@ -164,9 +155,79 @@ impl ImportHandler {
                 // If there is, we use that file. If there isn't, we use the directory.
                 // If there is a 'http.mt' file in std/net as well as a directory 'http/',
                 // the directory takes priority (Folders always appear before files in the filesystem).
-                
-                let path = format!("{}/{}", self.filename, sections.join("/"));
 
+                let mut path: String;
+                if sections.first().unwrap().to_string() == "std".to_string() {
+                    let p = self.get_stdlib_path();
+
+                    path = format!("{}/{}", p, sections[1..].join("/"));
+
+                    // Currently, the path is a directory. we need to check if this directory exists
+                    if fs::metadata(&path).is_ok() {
+                        // we need to look for a file "std/hello/hello.mt"
+                        // if it exists, use it
+                        // if it doesn't, use the directory
+                        let last = sections.last().unwrap();
+                        if fs::metadata(&format!("{}/{}{}", path, last, MATCHA_EXT)).is_ok() {
+                            path = format!("{}/{}{}", path, last, MATCHA_EXT);
+                        } else {
+                            return (path, true);
+                        }
+                    } else {
+                        path = format!("{}{}", path, MATCHA_EXT);
+                    }
+                } else {
+                    let mut current_path = self.filename.clone();
+                    let s = self.filename.split("/").collect::<Vec<&str>>();
+
+                    // alg:
+                    /*
+                    input example: C:/Users/OLCHIK/Matcha/test/src/test.mt
+                    1. remove the last element: C:/Users/OLCHIK/Matcha/test/src
+                    2. check whether or not C:/Users/OLCHIK/Matcha/test/src/.matcharoot exists
+                    3. if it does, break from the loop.
+                    4. if it doesn't, remove the last element: C:/Users/OLCHIK/Matcha/test
+                    5. repeat steps 2-4
+                    6. if we reach the root directory, panic.
+                    7. if we find a .matcharoot file, use it.
+                    8. Once a .matcharoot file has been found, save the path to a variable.
+                    9. Search this path for the module.
+                    */
+                    for i in 0..s.len() {
+                        let mut path = s[0..s.len() - i].join("/");
+                        path = format!("{}/.matcharoot", path);
+
+                        if fs::metadata(&path).is_ok() {
+                            current_path = path.replace(".matcharoot", "");
+
+                            
+                            break;
+                        }
+                    }
+
+                    if current_path == self.filename {
+                        panic!("Cannot find a .matcharoot file.")
+                    }
+
+                    path = format!("{}{}", current_path, sections.join("/"));
+
+                    if fs::metadata(&path).is_ok() {
+                        let last = sections.last().unwrap();
+                        if fs::metadata(&format!("{}/{}{}", path, last, MATCHA_EXT)).is_ok() {
+                            path = format!("{}/{}{}", path, last, MATCHA_EXT);
+                        } else {
+                            return (path, true);
+                        }
+                    } else {
+                        path = format!("{}{}", path, MATCHA_EXT);
+                    }
+                }
+
+                if path == String::new() {
+                    panic!("Cannot find a .matcharoot file.")
+                }
+
+                println!("{:?}", path);
                 if fs::metadata(&path).unwrap().is_dir() {
                     let files = fs::read_dir(&path).unwrap();
 
@@ -193,7 +254,7 @@ impl ImportHandler {
                     }
                 } else {
                     // e.g. std/net/http.mt
-                    return (format!("{}{}", path, MATCHA_EXT), false);
+                    return (format!("{}", path), false);
                 }
             }
         }
