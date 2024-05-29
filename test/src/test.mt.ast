@@ -3,7 +3,7 @@ Some(
         name: Identifier {
             name: Identifier 'test' (at 1:12),
         },
-        filename: "C:/Users/OLCHIK/Matcha/test/src/test.mt",
+        filename: "./test/src/test.mt",
         statements: [
             Statement {
                 kind: Struct(

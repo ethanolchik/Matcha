@@ -1,7 +1,5 @@
 module test;
 
-import x;
-
 struct Dog {
     name: String,
     colour: Colour
@@ -26,8 +24,6 @@ func main(): Void {
     var myDog: Dog = new_dog("Foo", Colour.RED);
 
     myDog.bark();
-
-    var t: x.Test;
 }
 
 export {
