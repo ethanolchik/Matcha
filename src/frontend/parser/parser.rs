@@ -5,13 +5,24 @@
 //> Imports
 
 use std::vec;
-use codespan_reporting::diagnostic::Label;
 
 use crate::{
     ast::ast::*,
-    errors::errors::Error,
-    frontend::lexer::token::{Token, TokenType},
-    semantic::types::{Type, TypeKind, UserType, UserTypeKind, Modifiers},
+    errors::errors::{
+        Diagnostic,
+        DiagnosticKind
+    },
+    frontend::lexer::token::{
+        Token,
+        TokenType
+    },
+    semantic::types::{
+        Type,
+        TypeKind,
+        UserType,
+        UserTypeKind,
+        Modifiers
+    },
     utils::Position,
 };
 
@@ -2059,19 +2070,36 @@ impl Parser {
         self.peek()
     }
 
-    fn error(&mut self, _token: Token, message: String, labels: Option<Vec<Label<usize>>>) {
+    fn error(&mut self, token: Token, message: String, labels: Option<Vec<String>>) {
         if self.panic_mode {
             return;
         }
+
         self.panic_mode = true;
 
-        let mut error = Error::new(message, String::from("E003"));
-        error.build(
-            self.filename.clone(),
-            self.content.clone(),
-            labels.unwrap_or(vec![])
+        let error = Diagnostic::new(
+            DiagnosticKind::Error,
+            message,
+            token.line,
+            token.pos,
+            self.filename.clone()
         );
+
         error.emit();
+        if let Some(l) = labels {
+            for i in l {
+                let label = Diagnostic::new(
+                    DiagnosticKind::Note,
+                    i,
+                    token.line,
+                    token.pos,
+                    self.filename.clone()
+                );
+
+                label.emit();
+            }
+        }
+
         self.had_error = true;
     }
 

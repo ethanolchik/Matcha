@@ -2,62 +2,65 @@
 // src/errors/errors.rs
 // This file contains the Error struct which is used throughout the compiler to represent errors.
 
-use codespan_reporting::{
-    diagnostic::{Diagnostic, Label},
-    files::SimpleFiles,
-    term::{
-        emit, Config,
-        termcolor::{ColorChoice, StandardStream}
-    }
-};
-
 /// Error(labels, message, code) struct
 /// This struct is used to represent errors throughout the compiler.
-pub struct Error {
-    pub files: SimpleFiles<String, String>,
-    pub writer: StandardStream,
-    pub config: Config,
-
-    pub labels: Vec<Label<usize>>,
+pub struct Diagnostic {
+    pub kind: DiagnosticKind,
     pub message: String,
-    pub code: String
+    pub line: usize,
+    pub col: usize,
+    pub filename: String
 }
 
-//> Implementation
+/// ErrorKind enum
+/// Represents the kind of error that occurred.
+pub enum DiagnosticKind {
+    Error,
+    Warning,
+    Note
+}
 
-impl Error {
-    pub fn new(message: String, code: String) -> Error {
-        Error {
-            files: SimpleFiles::new(),
-            writer: StandardStream::stderr(ColorChoice::Always),
-            config: Config::default(),
-
-            labels: vec![],
+impl Diagnostic {
+    pub fn new(kind: DiagnosticKind, message: String, line: usize, col: usize, filename: String) -> Self {
+        Self {
+            kind,
             message,
-            code
+            line,
+            col,
+            filename
         }
     }
 
-    fn add_file(&mut self, file_name: String, file_content: String) -> usize {
-        self.files.add(file_name, file_content)
+    pub fn emit(&self) {
+        eprintln!("{}:{}:{}: {}:\x1b[0m {}", self.filename, self.line, self.col, self.kind.as_string(), self.message);
+        eprintln!("\t{} | {}\n", self.line, self.get_line_from_file(self.line));
     }
 
-    pub fn build(&mut self, file_name: String, file_content: String, labels: Vec<Label<usize>>)
-    {
-        let file_id = self.add_file(file_name, file_content);
+    fn get_line_from_file(&self, line: usize) -> String {
+        let file = std::fs::read_to_string(&self.filename).unwrap();
+        let lines = file.lines().collect::<Vec<&str>>();
+        let line = lines.get(line - 1).unwrap();
 
-        for mut label in labels {
-            label.file_id = file_id;
-            self.labels.push(label)
+        return String::from(*line);
+    }
+}
+
+impl DiagnosticKind {
+    pub fn colour(&self) -> String {
+        match self {
+            DiagnosticKind::Error => String::from("\x1b[91m"),
+            DiagnosticKind::Warning => String::from("\x1b[93m"),
+            DiagnosticKind::Note => String::from("\x1b[96m")
         }
     }
 
-    pub fn emit(&mut self) {
-        let diagnostic: Diagnostic<usize>= Diagnostic::error()
-            .with_message(self.message.clone())
-            .with_code(self.code.clone())
-            .with_labels(self.labels.clone());
+    pub fn as_string(&self) -> String {
+        let x = match self {
+            DiagnosticKind::Error => String::from("error"),
+            DiagnosticKind::Warning => String::from("warning"),
+            DiagnosticKind::Note => String::from("note")
+        };
 
-        emit(&mut self.writer.lock(), &self.config, &self.files, &diagnostic).unwrap()
+        return self.colour() + &x;
     }
-} 
+}

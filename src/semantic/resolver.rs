@@ -12,7 +12,10 @@ use crate::{
     utils::{
         imports::ImportHandler
     },
-    errors::errors::Error,
+    errors::errors::{
+        Diagnostic,
+        DiagnosticKind
+    },
     ast::ast::Visitor
 };
 
@@ -50,17 +53,32 @@ impl Resolver {
         program.accept(self);
     }
 
-    fn error(&mut self, message: &str) {
+    fn error(&mut self, message: &str, line: usize, col: usize, labels: Option<Vec<String>>) {
         self.had_error = true;
 
-        let mut error = Error::new(message.to_string(), "E005".to_string());
-        error.build(
-            self.filename.clone(),
-            self.source.clone(),
-            vec![]);
-            //vec![Label::primary(self.fileid, pos.start_pos..pos.end_pos).with_message(message.to_string())]);
-
+        let error = Diagnostic::new(
+            DiagnosticKind::Error,
+            message.to_string(),
+            line,
+            col,
+            self.filename.clone()
+        );
+        
         error.emit();
+
+        if let Some(l) = labels {
+            for i in l {
+                let label = Diagnostic::new(
+                    DiagnosticKind::Note,
+                    i,
+                    line,
+                    col,
+                    self.filename.clone()
+                );
+
+                label.emit();
+            }
+        }
     }
 }
 
@@ -133,9 +151,19 @@ impl Visitor for Resolver {
 
         if self.symtable.global() {
             if !variable.type_.modifiers.is_const {
-                self.error("Cannot define a non-constant variable in the global scope");
+                self.error(
+                    "Cannot define a non-constant variable in the global scope",
+                    variable.name.pos.start_line,
+                    variable.name.pos.start_pos,
+                    None
+                );
             } else if variable.type_.modifiers.is_pub {
-                self.error("'pub' modifier can only be used on object attributes/methods");
+                self.error(
+                    "'pub' modifier can only be used on object attributes/methods",
+                    variable.name.pos.start_line,
+                    variable.name.pos.start_pos,
+                    None
+                );
             }
         }
 
@@ -162,10 +190,20 @@ impl Visitor for Resolver {
 
         if function.is_method {
             if !self.symtable.global() {
-                self.error("Methods can only be defined in the global scope");
+                self.error(
+                    "Methods can only be defined in the global scope",
+                    function.name.pos.start_line,
+                    function.name.pos.start_pos,
+                    None
+                );
             }
             if function.type_.modifiers.is_extern {
-                self.error("Cannot declare an extern method.");
+                self.error(
+                    "Cannot declare an extern method.",
+                    function.name.pos.start_line,
+                    function.name.pos.start_pos,
+                    None
+                );
             }
 
             let obj_type = match &function.obj_ref_name.as_ref().unwrap().kind {
@@ -182,7 +220,12 @@ impl Visitor for Resolver {
                     };
 
                     if m_name == name {
-                        self.error(format!("Attribute with name '{}' already exists on {}", name, obj_type).as_str());
+                        self.error(
+                            format!("Attribute with name '{}' already exists on {}", name, obj_type).as_str(),
+                            function.name.pos.start_line,
+                            function.name.pos.start_pos,
+                            None
+                        );
                     }
                 }
 
@@ -193,7 +236,12 @@ impl Visitor for Resolver {
                     };
 
                     if f_name == name {
-                        self.error(format!("Attribute with name '{}' already exists on {}", name, obj_type).as_str());
+                        self.error(
+                            format!("Attribute with name '{}' already exists on {}", name, obj_type).as_str(),
+                            function.name.pos.start_line,
+                            function.name.pos.start_pos,
+                            None
+                        );
                     }
                 }
 
@@ -209,7 +257,12 @@ impl Visitor for Resolver {
                     };
 
                     if m_name == name {
-                        self.error(format!("Attribute with name '{}' already exists on {}", name, obj_type).as_str());
+                        self.error(
+                            format!("Attribute with name '{}' already exists on {}", name, obj_type).as_str(),
+                            function.name.pos.start_line,
+                            function.name.pos.start_pos,
+                            None
+                        );
                     }
                 }
 
@@ -220,7 +273,12 @@ impl Visitor for Resolver {
                     };
 
                     if v_name == name {
-                        self.error(format!("Attribute with name '{}' already exists on {}", name, obj_type).as_str());
+                        self.error(
+                            format!("Attribute with name '{}' already exists on {}", name, obj_type).as_str(),
+                            function.name.pos.start_line,
+                            function.name.pos.start_pos,
+                            None
+                        );
                     }
                 }
 
@@ -231,7 +289,12 @@ impl Visitor for Resolver {
             }
         } else {
             if function.type_.modifiers.is_pub {
-                self.error("'pub' modifier can only be used on object attributes/methods");
+                self.error(
+                    "'pub' modifier can only be used on object attributes/methods",
+                    function.name.pos.start_line,
+                    function.name.pos.start_pos,
+                    None
+                );
             }
         }
 
@@ -256,17 +319,37 @@ impl Visitor for Resolver {
         }
 
         if !self.symtable.global() {
-            self.error("Structs can only be defined in the global scope");
+            self.error(
+                "Structs can only be defined in the global scope",
+                struct_.name.pos.start_line,
+                struct_.name.pos.start_pos,
+                None
+            );
         }
 
         if struct_.type_.modifiers.is_const {
-            self.error("'const' modifier cannot be used on structs.");
+            self.error(
+                "'const' modifier cannot be used on structs.",
+                struct_.name.pos.start_line,
+                struct_.name.pos.start_pos,
+                None
+            );
         }
         if struct_.type_.modifiers.is_pub {
-            self.error("'pub' modifier can only be used on object attributes/methods");
+            self.error(
+                "'pub' modifier can only be used on object attributes/methods",
+                struct_.name.pos.start_line,
+                struct_.name.pos.start_pos,
+                None
+            );
         }
         if struct_.type_.modifiers.is_extern {
-            self.error("Cannot declare an extern struct.");
+            self.error(
+                "Cannot declare an extern struct.",
+                struct_.name.pos.start_line,
+                struct_.name.pos.start_pos,
+                None
+            );
         }
 
         let name = match &struct_.name.kind {
@@ -294,17 +377,37 @@ impl Visitor for Resolver {
         }
 
         if !self.symtable.global() {
-            self.error("Enums can only be defined in the global scope");
+            self.error(
+                "Enums can only be defined in the global scope",
+                enum_.name.pos.start_line,
+                enum_.name.pos.start_pos,
+                None
+            );
         }
 
         if enum_.type_.modifiers.is_const {
-            self.error("'const' modifier cannot be used on enums.");
+            self.error(
+                "'const' modifier cannot be used on enums.",
+                enum_.name.pos.start_line,
+                enum_.name.pos.start_pos,
+                None
+            );
         }
         if enum_.type_.modifiers.is_pub {
-            self.error("'pub' modifier can only be used on object attributes/methods");
+            self.error(
+                "'pub' modifier can only be used on object attributes/methods",
+                enum_.name.pos.start_line,
+                enum_.name.pos.start_pos,
+                None
+            );
         }
         if enum_.type_.modifiers.is_extern {
-            self.error("Cannot declare an extern enum.");
+            self.error(
+                "Cannot declare an extern enum.",
+                enum_.name.pos.start_line,
+                enum_.name.pos.start_pos,
+                None
+            );
         }
 
         let name = match &enum_.name.kind {
@@ -328,7 +431,12 @@ impl Visitor for Resolver {
 
     fn visit_return(&mut self, return_: &Return) -> TypeOption {
         if self.symtable.global() || !self.in_function_body {
-            self.error("Cannot return from the global scope");
+            self.error(
+                "Cannot return from the global scope",
+                return_.pos.start_line,
+                return_.pos.start_pos,
+                None
+            );
         }
 
         if let Some(value) = &return_.value {
@@ -400,7 +508,12 @@ impl Visitor for Resolver {
 
     fn visit_break(&mut self, _break: &Break) -> TypeOption {
         if !self.in_loop {
-            self.error("Cannot break outside of a loop");
+            self.error(
+                "'break' statement cannot be used outside of a loop.",
+                _break.pos.start_line,
+                _break.pos.start_pos,
+                None
+            );
         }
 
         TypeOption::None
@@ -408,7 +521,12 @@ impl Visitor for Resolver {
 
     fn visit_continue(&mut self, _continue: &Continue) -> TypeOption {
         if !self.in_loop {
-            self.error("Cannot continue outside of a loop");
+            self.error(
+                "'continue' statement cannot be used outside of a loop.",
+                _continue.pos.start_line,
+                _continue.pos.start_pos,
+                None
+            );
         }
 
         TypeOption::None
@@ -436,7 +554,24 @@ impl Visitor for Resolver {
             return TypeOption::None;
         }
 
-        self.error(format!("Undefined symbol {}", identifier.name.lexeme).as_str());
+        let x = self.symtable.suggest(identifier.name.lexeme.clone());
+
+        if x.is_some() {
+            self.error(
+                format!("Undefined name '{}'", identifier.name.lexeme).as_str(),
+                identifier.name.line,
+                identifier.name.pos,
+                Some(vec![format!("Did you mean {}?", x.unwrap())])
+            );
+        } else {
+            self.error(
+                format!("Undefined name '{}'", identifier.name.lexeme).as_str(),
+                identifier.name.line,
+                identifier.name.pos,
+                None
+            );
+        }
+
         TypeOption::None
     }
 
@@ -489,7 +624,24 @@ impl Visitor for Resolver {
             return TypeOption::None;
         }
 
-        self.error(format!("Undefined struct {}", struct_instance.name.lexeme).as_str());
+        let x = self.symtable.suggest(struct_instance.name.lexeme.clone());
+
+        if x.is_some() {
+            self.error(
+                format!("Undefined struct '{}'", struct_instance.name.lexeme).as_str(),
+                struct_instance.name.line,
+                struct_instance.name.pos,
+                Some(vec![format!("Did you mean {}?", x.unwrap())])
+            );
+        } else {
+            self.error(
+                format!("Undefined struct '{}'", struct_instance.name.lexeme).as_str(),
+                struct_instance.name.line,
+                struct_instance.name.pos,
+                None
+            );
+        }
+
         TypeOption::None
     }
 

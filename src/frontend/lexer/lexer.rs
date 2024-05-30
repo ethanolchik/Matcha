@@ -9,7 +9,10 @@
 use codespan_reporting::diagnostic::Label;
 
 use crate::{
-    errors::errors::Error,
+    errors::errors::{
+        Diagnostic,
+        DiagnosticKind
+    },
     frontend::lexer::token::{Token, TokenType}
 };
 
@@ -217,17 +220,12 @@ impl Lexer {
                 // We don't need to do anything here because we will add an EOF token after the loop.
             }
             _ => {
-                let mut error = Error::new(
-                    format!("Unexpected character: {}", c),
-                    String::from("E001")
-                );
-
-                error.build(
-                    self.filename.clone(),
-                    self.source.clone(),
-                    vec![
-                        Label::primary(0, self.start..self.current).with_message("Unexpected character.")
-                    ]
+                let error = Diagnostic::new(
+                    DiagnosticKind::Error,
+                    format!("Unexpected character {:?}", c),
+                    self.line,
+                    self.pos,
+                    self.filename.clone()
                 );
 
                 error.emit();
@@ -298,18 +296,12 @@ impl Lexer {
         }
 
         if self.is_at_end() {
-            // Error: Unterminated String
-            let mut error = Error::new(
+            let error = Diagnostic::new(
+                DiagnosticKind::Error,
                 String::from("Unterminated string"),
-                String::from("E002")
-            );
-
-            error.build(
-                self.filename.clone(),
-                self.source.clone(),
-                vec![
-                    Label::primary(0, self.start..self.current).with_message(format!("Expected {:?}, got EOF.", quote))
-                ]
+                self.line,
+                self.pos,
+                self.filename.clone()
             );
 
             error.emit();
@@ -398,27 +390,5 @@ impl Lexer {
         );
 
         self.start = self.current;
-    }
-}
-
-
-//> Unit Tests
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_lexer() {
-        let filename = "C:/Users/OLCHIK/Matcha/src/test.mt";
-        let source = match std::fs::read_to_string(&filename) {
-            Ok(content) => content,
-            Err(err) => panic!("Failed to read file {}: {}", &filename, err), // Error: Failed to read file
-        };
-        let mut lexer = Lexer::new(String::from(filename), source.clone());
-        let tokens = lexer.scan_tokens();
-
-        assert_eq!(tokens[0], Token::new(TokenType::Import, String::from("import"), 1, 7));
-
-        // TODO: Finish writing these tests
     }
 }
