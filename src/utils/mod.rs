@@ -4,6 +4,7 @@
 pub mod imports;
 pub mod compile;
 pub mod module;
+pub mod maths;
 
 //> Macro_rules
 

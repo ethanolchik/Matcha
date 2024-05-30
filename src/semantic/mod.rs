@@ -13,7 +13,8 @@ use crate::{
     semantic::types::Type,
     utils::{
         module::MatchaModule,
-        imports::ImportHandler
+        imports::ImportHandler,
+        maths::jaro_winkler
     }
 };
 
@@ -605,7 +606,7 @@ impl SymbolTable {
                 DeclarationKind::Function(function) => {
                     match &function.name.kind {
                         ExpressionKind::Identifier(id) => {
-                            let sim = self.measure_similarity(s.clone(), id.name.lexeme.clone());
+                            let sim = jaro_winkler(s.clone(), id.name.lexeme.clone());
                             if sim > max {
                                 max = sim;
                                 name = id.name.lexeme.clone();
@@ -617,7 +618,7 @@ impl SymbolTable {
                 DeclarationKind::Method(method) => {
                     match &method.name.kind {
                         ExpressionKind::Identifier(id) => {
-                            let sim = self.measure_similarity(s.clone(), id.name.lexeme.clone());
+                            let sim = jaro_winkler(s.clone(), id.name.lexeme.clone());
                             if sim > max {
                                 max = sim;
                                 name = id.name.lexeme.clone();
@@ -629,7 +630,7 @@ impl SymbolTable {
                 DeclarationKind::Variable(variable) => {
                     match &variable.name.kind {
                         ExpressionKind::Identifier(id) => {
-                            let sim = self.measure_similarity(s.clone(), id.name.lexeme.clone());
+                            let sim = jaro_winkler(s.clone(), id.name.lexeme.clone());
                             if sim > max {
                                 max = sim;
                                 name = id.name.lexeme.clone();
@@ -641,7 +642,7 @@ impl SymbolTable {
                 DeclarationKind::Struct(struct_) => {
                     match &struct_.name.kind {
                         ExpressionKind::Identifier(id) => {
-                            let sim = self.measure_similarity(s.clone(), id.name.lexeme.clone());
+                            let sim = jaro_winkler(s.clone(), id.name.lexeme.clone());
                             if sim > max {
                                 max = sim;
                                 name = id.name.lexeme.clone();
@@ -653,7 +654,7 @@ impl SymbolTable {
                 DeclarationKind::Enum(enum_) => {
                     match &enum_.name.kind {
                         ExpressionKind::Identifier(id) => {
-                            let sim = self.measure_similarity(s.clone(), id.name.lexeme.clone());
+                            let sim = jaro_winkler(s.clone(), id.name.lexeme.clone());
                             if sim > max {
                                 max = sim;
                                 name = id.name.lexeme.clone();
@@ -665,38 +666,11 @@ impl SymbolTable {
             }
         }
 
-        if max > 0.5 {
+        if max > 0.75 {
             Some(format!("'{}' ({}% match)", name, (max*100.0) as i32))
         } else {
             None
         }
-    }
-
-    fn measure_similarity(&self, s: String, s2: String) -> f32 {
-        let mut score = 0.0;
-        let mut s1 = s.clone();
-        let mut s2 = s2.clone();
-
-        if s1.len() > s2.len() {
-            let temp = s1.clone();
-            s1 = s2.clone();
-            s2 = temp.clone();
-        }
-
-        let mut i = 0;
-        let mut j = 0;
-
-        while i < s1.len() && j < s2.len() {
-            if s1.chars().nth(i).unwrap() == s2.chars().nth(j).unwrap() {
-                score += 1.0;
-                i += 1;
-                j += 1;
-            } else {
-                j += 1;
-            }
-        }
-
-        score / s2.len() as f32
     }
 
     pub fn current_mut(&mut self) -> &mut Environment {
