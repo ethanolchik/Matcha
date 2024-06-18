@@ -8,14 +8,9 @@
 > Matcha is currently WIP. The compiler development is incomplete.
 
 ## Roadmap
-> [x] Complete
-
-> [!] WIP
-
-> [ ] Not started
 - [x] Lexical Analysis
 - [x] Parser
-- [ ] Name Resolution
+- [ ] Name Resolution (WIP)
 - [ ] Typechecking
 - [ ] Garbage Collection
 - [ ] Code Generation
