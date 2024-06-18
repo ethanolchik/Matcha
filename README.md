@@ -1,15 +1,15 @@
-# Matcha
 <p align="center">
-    <img src="docs/img/matcha transparent text.png" style="width: 100%; align: center;">
-    <br/>
-    <p>🍵 <i>A caffeinated programming language for the modern world.</i></p>
+    <img src="docs/img/matcha%20transparent%20text.png" style="width: 50%; align: center;">
+    <p align="center">🍵 <i>A caffeinated programming language for the modern world.</i></p>
 </p>
 
-<br/>
 > [!NOTE]
 > Matcha is currently WIP. The compiler development is incomplete.
 
 ## Roadmap
+> [x] Complete
+> [!] WIP
+> [ ] Not started
 - [x] Lexical Analysis
 - [x] Parser
 - [ ] Name Resolution
