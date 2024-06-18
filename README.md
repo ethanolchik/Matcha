@@ -1,9 +1,15 @@
 # Matcha
-🍵 A caffeinated programming language for the modern world.
+<p align="center">
+    <img src="docs/img/matcha transparent text.png" style="width: 100%; align: center;">
+    <br/>
+    <p>🍵 <i>A caffeinated programming language for the modern world.</i></p>
+</p>
 
-# Progress
-Matcha is currently WIP. The compiler development is incomplete, however, here is a roadmap:
+<br/>
+> [!NOTE]
+> Matcha is currently WIP. The compiler development is incomplete.
 
+## Roadmap
 - [x] Lexical Analysis
 - [x] Parser
 - [ ] Name Resolution
