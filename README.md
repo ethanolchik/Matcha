@@ -3,12 +3,15 @@
     <p align="center">🍵 <i>A caffeinated programming language for the modern world.</i></p>
 </p>
 
+# Matcha
 > [!NOTE]
 > Matcha is currently WIP. The compiler development is incomplete.
 
 ## Roadmap
 > [x] Complete
+
 > [!] WIP
+
 > [ ] Not started
 - [x] Lexical Analysis
 - [x] Parser
