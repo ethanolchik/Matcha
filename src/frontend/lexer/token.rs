@@ -1,4 +1,4 @@
- // Ethan Olchik
+// Ethan Olchik
 // src/frontend/lexer/token.rs
 // This file contains the Token struct TokenType enum and Type enum which are used throughout
 // the compiler to represent tokens and their types.
@@ -22,30 +22,81 @@ pub struct Token {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TokenType {
     // Single-character tokens
-    Plus, Minus, Star, Slash, LeftParen, RightParen,
-    LeftBrace, RightBrace, LeftBracket, RightBracket,
-    Comma, Dot, Equals, Semicolon, Colon, Bang,
-    Less, Greater, Ampersand, Pipe, Percent, Caret,
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    LeftParen,
+    RightParen,
+    LeftBrace,
+    RightBrace,
+    LeftBracket,
+    RightBracket,
+    Comma,
+    Dot,
+    Equals,
+    Semicolon,
+    Colon,
+    Bang,
+    Less,
+    Greater,
+    Ampersand,
+    Pipe,
+    Percent,
+    Caret,
 
     // Double-character tokens
-    PlusEquals, MinusEquals, StarEquals, SlashEquals,
-    EqualsEquals, BangEquals, LessEquals, GreaterEquals,
-    AmpersandAmpersand, PipePipe, PlusPlus, MinusMinus,
-    AmpersandEquals, PipeEquals, CaretEquals, PercentEquals,
-    StarStar, Arrow,
+    PlusEquals,
+    MinusEquals,
+    StarEquals,
+    SlashEquals,
+    EqualsEquals,
+    BangEquals,
+    LessEquals,
+    GreaterEquals,
+    AmpersandAmpersand,
+    PipePipe,
+    PlusPlus,
+    MinusMinus,
+    AmpersandEquals,
+    PipeEquals,
+    CaretEquals,
+    PercentEquals,
+    StarStar,
+    Arrow,
 
     // Literals
-    Identifier, Integer, Float, String,
+    Identifier,
+    Integer,
+    Float,
+    String,
 
     // Keywords
-    If, Else, While, For, Return, Break, Continue,
-    Import, Module,
-    Var, Func, Struct, Enum,
-    True, False, Null,
-    Export, Pub, As, Extern, Static, Const, // TODO: Depreciate `static` for func (T) n() -> T {}
+    If,
+    Else,
+    While,
+    For,
+    Return,
+    Break,
+    Continue,
+    Import,
+    Module,
+    Var,
+    Func,
+    Struct,
+    Enum,
+    True,
+    False,
+    Null,
+    Export,
+    Pub,
+    As,
+    Extern,
+    Static,
+    Const, // TODO: Depreciate `static` for func (T) n() -> T {}
 
     // Other
-    Eof
+    Eof,
 }
 
 //> Trait Implementations
@@ -58,7 +109,11 @@ impl PartialEq for Token {
 
 impl std::fmt::Debug for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?} '{}' (at {}:{})", self.kind, self.lexeme, self.line, self.pos)
+        write!(
+            f,
+            "{:?} '{}' (at {}:{})",
+            self.kind, self.lexeme, self.line, self.pos
+        )
     }
 }
 
@@ -68,7 +123,7 @@ impl Token {
             kind,
             lexeme,
             line,
-            pos
+            pos,
         }
     }
 }
@@ -84,7 +139,7 @@ impl TokenType {
             TokenType::AmpersandEquals,
             TokenType::PipeEquals,
             TokenType::CaretEquals,
-            TokenType::PercentEquals
+            TokenType::PercentEquals,
         ]
     }
 }

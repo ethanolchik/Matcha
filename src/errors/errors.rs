@@ -2,6 +2,12 @@
 // src/errors/errors.rs
 // This file contains the Error struct which is used throughout the compiler to represent errors.
 
+//> Imports
+
+use crate::is_flag_set_str;
+
+//> Definitions
+
 /// Error(labels, message, code) struct
 /// This struct is used to represent errors throughout the compiler.
 pub struct Diagnostic {
@@ -9,7 +15,7 @@ pub struct Diagnostic {
     pub message: String,
     pub line: usize,
     pub col: usize,
-    pub filename: String
+    pub filename: String,
 }
 
 /// ErrorKind enum
@@ -17,23 +23,42 @@ pub struct Diagnostic {
 pub enum DiagnosticKind {
     Error,
     Warning,
-    Note
+    Note,
+    Fatal,
 }
 
 impl Diagnostic {
-    pub fn new(kind: DiagnosticKind, message: String, line: usize, col: usize, filename: String) -> Self {
+    pub fn new(
+        kind: DiagnosticKind,
+        message: String,
+        line: usize,
+        col: usize,
+        filename: String,
+    ) -> Self {
         Self {
             kind,
             message,
             line,
             col,
-            filename
+            filename,
         }
     }
 
     pub fn emit(&self) {
-        eprintln!("{}:{}:{}: {}:\x1b[0m {}", self.filename, self.line, self.col, self.kind.as_string(), self.message);
+        eprintln!(
+            "{}:{}:{}: {}:\x1b[0m {}",
+            self.filename,
+            self.line,
+            self.col,
+            self.kind.as_string(),
+            self.message
+        );
         eprintln!("\t{} | {}\n", self.line, self.get_line_from_file(self.line));
+
+        match self.kind {
+            DiagnosticKind::Fatal => std::process::exit(1),
+            _ => {}
+        }
     }
 
     fn get_line_from_file(&self, line: usize) -> String {
@@ -47,10 +72,13 @@ impl Diagnostic {
 
 impl DiagnosticKind {
     pub fn colour(&self) -> String {
+        if is_flag_set_str!("no colour") {
+            return String::new();
+        }
         match self {
-            DiagnosticKind::Error => String::from("\x1b[91m"),
+            DiagnosticKind::Error | DiagnosticKind::Fatal => String::from("\x1b[91m"),
             DiagnosticKind::Warning => String::from("\x1b[93m"),
-            DiagnosticKind::Note => String::from("\x1b[96m")
+            DiagnosticKind::Note => String::from("\x1b[96m"),
         }
     }
 
@@ -58,7 +86,8 @@ impl DiagnosticKind {
         let x = match self {
             DiagnosticKind::Error => String::from("error"),
             DiagnosticKind::Warning => String::from("warning"),
-            DiagnosticKind::Note => String::from("note")
+            DiagnosticKind::Note => String::from("note"),
+            DiagnosticKind::Fatal => String::from("fatal"),
         };
 
         return self.colour() + &x;

@@ -1,0 +1,1 @@
+cargo run ./test/src/test_get.mt

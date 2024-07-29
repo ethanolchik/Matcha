@@ -4,18 +4,12 @@
 //> Imports
 
 use crate::{
-    ast::ast::{
-        Expression,
-        ExpressionKind,
-        Import,
-    },
+    ast::ast::{Expression, ExpressionKind, Import, Node, StatementKind},
+    semantic::{Symbol, SymbolIdGen, SymbolKind},
     utils::{
-        module::{
-            MatchaModule,
-            DependencyTable
-        },
-        compile::parse
-    }
+        compile::{parse, resolve},
+        module::{DependencyTable, MatchaModule},
+    },
 };
 
 use std::fs;
@@ -31,7 +25,9 @@ pub struct ImportHandler {
 
     pub dependency_table: DependencyTable,
 
-    filename: String
+    filename: String,
+
+    id_gen: SymbolIdGen,
 }
 
 //> Implementations
@@ -41,11 +37,12 @@ impl ImportHandler {
         Self {
             resolved: Vec::new(),
             dependency_table: DependencyTable::new(),
-            filename
+            filename,
+            id_gen: SymbolIdGen::new(),
         }
     }
 
-    pub fn process_import(&mut self, import: Import) -> MatchaModule {
+    pub fn process_import(&mut self, import: Import, id: i32) -> MatchaModule {
         let module = self.resolve_import(import.clone(), &mut vec![]);
 
         self.dependency_table.push_module(module.clone());
@@ -56,10 +53,10 @@ impl ImportHandler {
 
     /// Takes an import AST, breaks it down into a path, and then resolves it into a MatchaModule.<br>
     /// e.g.<br>
-    /// In: Import { .., path: Identifier { 'std.net.http' }}, cycle: [[...]] (keeps track of paths to detect cyclic imports) <br> 
+    /// In: Import { .., path: Identifier { 'std.net.http' }}, cycle: [[...]] (keeps track of paths to detect cyclic imports) <br>
     /// Out: MatchaModule { name: 'http', dependencies: [[...]], path: std/net/http.mt, exported_symbols: [[...]] }
     // TODO: allow std.net.http.{Request}, std.net.http.{Request, Response}
-    fn resolve_import(&self, import: Import, cycle: &mut Vec<String>) -> MatchaModule {
+    fn resolve_import(&mut self, import: Import, cycle: &mut Vec<String>) -> MatchaModule {
         // First, we need to get the path of the file, then we need to use that to build a MatchaModule.
         let path = self.modulename_to_path(import.path.clone());
         if cycle.contains(&path.0.clone()) {
@@ -74,9 +71,16 @@ impl ImportHandler {
         } else {
             match import.path.kind {
                 ExpressionKind::Identifier(id) => {
-                    name = id.name.lexeme.clone().split(".").last().unwrap().to_string();
+                    name = id
+                        .name
+                        .lexeme
+                        .clone()
+                        .split(".")
+                        .last()
+                        .unwrap()
+                        .to_string();
                 }
-                _ => unreachable!()
+                _ => unreachable!(),
             };
         }
 
@@ -84,7 +88,7 @@ impl ImportHandler {
             name,
             dependencies: Vec::new(),
             path: path.clone().0,
-            exported_symbols: Vec::new()
+            exported_symbols: Vec::new(),
         };
 
         // Now we need to parse the file and get the exported symbols
@@ -100,10 +104,68 @@ impl ImportHandler {
 
                 if file_name.ends_with(MATCHA_EXT) {
                     let file_path = file.path().to_str().unwrap().to_string();
-                    let program = parse(file_path).unwrap();
+                    let program = parse(file_path.clone()).unwrap();
 
-                    for i in program.imports {
-                        module.dependencies.push(self.resolve_import(i, cycle));
+                    for i in &program.imports {
+                        module
+                            .dependencies
+                            .push(self.resolve_import(i.clone(), cycle));
+                    }
+
+                    let symtable = resolve(file_path, &program).unwrap();
+
+                    for _s in program.statements {
+                        match _s.kind {
+                            StatementKind::Variable(v) => match v.name.kind {
+                                ExpressionKind::Identifier(ref id) => {
+                                    if symtable.exported.contains(id) {
+                                        let sym =
+                                            Symbol::new(&mut self.id_gen, SymbolKind::Constant(*v));
+
+                                        module.exported_symbols.push(sym);
+                                    }
+                                }
+                                _ => unreachable!(),
+                            },
+                            StatementKind::Struct(s) => match s.name.kind {
+                                ExpressionKind::Identifier(ref id) => {
+                                    if symtable.exported.contains(id) {
+                                        let sym =
+                                            Symbol::new(&mut self.id_gen, SymbolKind::Struct(*s));
+
+                                        module.exported_symbols.push(sym);
+                                    }
+                                }
+                                _ => unreachable!(),
+                            },
+                            StatementKind::Function(f) => match f.name.kind {
+                                ExpressionKind::Identifier(ref id) => {
+                                    if symtable.exported.contains(id) {
+                                        let kind = if f.is_method {
+                                            SymbolKind::Method(*f)
+                                        } else {
+                                            SymbolKind::Function(*f)
+                                        };
+                                        let sym = Symbol::new(&mut self.id_gen, kind);
+
+                                        module.exported_symbols.push(sym);
+                                    }
+                                }
+                                _ => unreachable!(),
+                            },
+                            StatementKind::Enum(e) => match e.name.kind {
+                                ExpressionKind::Identifier(ref id) => {
+                                    if symtable.exported.contains(id) {
+                                        let sym =
+                                            Symbol::new(&mut self.id_gen, SymbolKind::Enum(*e));
+
+                                        module.exported_symbols.push(sym);
+                                    }
+                                }
+                                _ => unreachable!(),
+                            },
+                            _ => break,
+                        }
                     }
                 }
             }
@@ -111,15 +173,63 @@ impl ImportHandler {
             // If the path is a file, we can just parse it and get the dependencies.
             let program = parse(path.clone().0).unwrap();
 
-            for i in program.imports {
-                module.dependencies.push(self.resolve_import(i, cycle));
+            for i in &program.imports {
+                module
+                    .dependencies
+                    .push(self.resolve_import(i.clone(), cycle));
             }
 
-            // TODO: Create a new symbol with the same name as the module imported. It's children should be the exported symbols in the program.
-            // resolve(path.0, program);
-            
+            let symtable = resolve(path.0, &program.clone()).unwrap();
+
             for _s in program.statements {
-                todo!()
+                match _s.kind {
+                    StatementKind::Variable(v) => match v.name.kind {
+                        ExpressionKind::Identifier(ref id) => {
+                            if symtable.exported.contains(id) {
+                                let sym = Symbol::new(&mut self.id_gen, SymbolKind::Constant(*v));
+
+                                module.exported_symbols.push(sym);
+                            }
+                        }
+                        _ => unreachable!(),
+                    },
+                    StatementKind::Struct(s) => match s.name.kind {
+                        ExpressionKind::Identifier(ref id) => {
+                            if symtable.exported.contains(id) {
+                                let sym = Symbol::new(&mut self.id_gen, SymbolKind::Struct(*s));
+
+                                module.exported_symbols.push(sym);
+                            }
+                        }
+                        _ => unreachable!(),
+                    },
+                    StatementKind::Function(f) => match f.name.kind {
+                        ExpressionKind::Identifier(ref id) => {
+                            if symtable.exported.contains(id) {
+                                let kind = if f.is_method {
+                                    SymbolKind::Method(*f)
+                                } else {
+                                    SymbolKind::Function(*f)
+                                };
+                                let sym = Symbol::new(&mut self.id_gen, kind);
+
+                                module.exported_symbols.push(sym);
+                            }
+                        }
+                        _ => unreachable!(),
+                    },
+                    StatementKind::Enum(e) => match e.name.kind {
+                        ExpressionKind::Identifier(ref id) => {
+                            if symtable.exported.contains(id) {
+                                let sym = Symbol::new(&mut self.id_gen, SymbolKind::Enum(*e));
+
+                                module.exported_symbols.push(sym);
+                            }
+                        }
+                        _ => unreachable!(),
+                    },
+                    _ => break,
+                }
             }
         }
 
@@ -130,7 +240,7 @@ impl ImportHandler {
     fn modulename_to_path(&self, expr: Expression) -> (String, bool) {
         let name = match expr.kind {
             ExpressionKind::Identifier(id) => id.name.lexeme,
-            _ => unreachable!()
+            _ => unreachable!(),
         };
 
         // e.g. std.net.http -> [std, net, http]
@@ -200,7 +310,6 @@ impl ImportHandler {
                         if fs::metadata(&path).is_ok() {
                             current_path = path.replace(".matcharoot", "");
 
-                            
                             break;
                         }
                     }
@@ -227,7 +336,6 @@ impl ImportHandler {
                     panic!("Cannot find a .matcharoot file.")
                 }
 
-                println!("{:?}", path);
                 if fs::metadata(&path).unwrap().is_dir() {
                     let files = fs::read_dir(&path).unwrap();
 
@@ -263,5 +371,24 @@ impl ImportHandler {
     fn get_stdlib_path(&self) -> String {
         // TODO: Generalise this.
         return String::from("C:/Users/OLCHIK/Matcha/std");
+    }
+}
+
+impl Clone for ImportHandler {
+    fn clone(&self) -> Self {
+        Self {
+            resolved: self.resolved.clone(),
+            dependency_table: self.dependency_table.clone(),
+            filename: self.filename.clone(),
+            id_gen: self.id_gen.clone(),
+        }
+    }
+}
+
+impl Clone for DependencyTable {
+    fn clone(&self) -> Self {
+        Self {
+            modules: self.modules.clone(),
+        }
     }
 }

@@ -1,23 +1,54 @@
-mod frontend;
-mod errors;
 mod ast;
+mod errors;
+mod frontend;
 mod semantic;
 mod utils;
 
-use std::{
-    fmt::write,
-    env
-};
+use std::{env, fmt::write};
 use utils::compile::compile;
 
+const PRINT_HELP: fn() -> () = || {
+    println!("Usage: matcha [options] <filename>");
+    println!("Options:");
+    println!("\t-d, --debug\tEnable debug mode");
+    println!("\t-nc, --no-colour\tDisable coloured output");
+    println!("\t-h, --help\tDisplay this help message");
+};
+
+// TODO: Create a repl
 fn main() {
-    let filename = env::args().nth(1).expect("No filename provided");
-    let statements = compile(String::from(filename.clone()));
+    let mut filename: Option<String> = None;
+    let args: Vec<String> = env::args().collect();
+
+    if args.len() == 1 {
+        PRINT_HELP();
+        return;
+    }
+
+    for arg in args.iter() {
+        match arg.as_str() {
+            "-d" | "--debug" => set_flag_str!("debug"),
+            "-nc" | "--no-colour" => set_flag_str!("no colour"),
+            "-h" | "--help" => {
+                PRINT_HELP();
+                return;
+            }
+            _ => {
+                filename = Some(arg.clone());
+            }
+        }
+    }
+
+    if filename.is_none() {
+        panic!("No filename provided");
+    }
+
+    let statements = compile(String::from(filename.clone().unwrap()));
     let mut output = String::new();
     write(&mut output, format_args!("{:#?}", statements)).unwrap();
 
     // write to file
-    let output_filename = filename + ".ast";
+    let output_filename = filename.unwrap() + ".ast";
     match std::fs::write(&output_filename, output) {
         Ok(_) => println!("Successfully wrote to file {}", output_filename),
         Err(err) => panic!("Failed to write to file {}: {}", output_filename, err),

@@ -1,17 +1,17 @@
+// Ethan Olchik
+// src/semantic/first_pass.rs
+
 use crate::{
-    semantic::{
-        types::*,
-        *
-    },
+    ast::ast::Visitor,
+    semantic::{types::*, *},
     utils::imports::ImportHandler,
-    ast::ast::Visitor
 };
 
 pub struct FirstPassResolver {
     pub symtable: SymbolTable,
     pub import_handler: ImportHandler,
 
-    pub filename: String
+    pub filename: String,
 }
 
 impl FirstPassResolver {
@@ -19,7 +19,7 @@ impl FirstPassResolver {
         Self {
             symtable: SymbolTable::new(filename.clone()),
             import_handler: ImportHandler::new(filename.clone()),
-            filename
+            filename,
         }
     }
 
@@ -50,7 +50,7 @@ impl Visitor for FirstPassResolver {
             StatementKind::Enum(ref enum_) => enum_.accept(self),
             StatementKind::Variable(ref variable) => variable.accept(self),
             StatementKind::Import(ref import) => import.accept(self),
-            _ => TypeOption::None
+            _ => TypeOption::None,
         }
     }
 
@@ -59,7 +59,9 @@ impl Visitor for FirstPassResolver {
     }
 
     fn visit_import(&mut self, import: &Import) -> TypeOption {
-        let m = self.import_handler.process_import(import.clone());
+        let m = self
+            .import_handler
+            .process_import(import.clone(), self.symtable.current().unwrap().sid.gen());
 
         self.symtable.define_module(m);
 
@@ -67,28 +69,45 @@ impl Visitor for FirstPassResolver {
     }
 
     fn visit_variable(&mut self, variable: &Variable) -> TypeOption {
-        self.symtable.decl_queue.push(DeclarationKind::Variable(variable.clone()));
+        self.symtable
+            .decl_queue
+            .push(DeclarationKind::Variable(variable.clone()));
 
+        self.symtable.current_mut().add_variable(variable.clone());
         TypeOption::None
     }
 
     fn visit_function(&mut self, function: &Function) -> TypeOption {
         if function.is_method {
-            self.symtable.decl_queue.push(DeclarationKind::Method(function.clone()));
+            self.symtable
+                .decl_queue
+                .push(DeclarationKind::Method(function.clone()));
         } else {
-            self.symtable.decl_queue.push(DeclarationKind::Function(function.clone()));
+            self.symtable
+                .decl_queue
+                .push(DeclarationKind::Function(function.clone()));
         }
+
+        self.symtable.current_mut().add_function(function.clone());
 
         TypeOption::None
     }
 
     fn visit_struct(&mut self, struct_: &Struct) -> TypeOption {
-        self.symtable.decl_queue.push(DeclarationKind::Struct(struct_.clone()));
+        self.symtable
+            .decl_queue
+            .push(DeclarationKind::Struct(struct_.clone()));
+        self.symtable.current_mut().add_struct(struct_.clone());
+        self.symtable.current_mut().add_type(struct_.type_.clone());
         TypeOption::None
     }
 
     fn visit_enum(&mut self, enum_: &Enum) -> TypeOption {
-        self.symtable.decl_queue.push(DeclarationKind::Enum(enum_.clone()));
+        self.symtable
+            .decl_queue
+            .push(DeclarationKind::Enum(enum_.clone()));
+        self.symtable.current_mut().add_enum(enum_.clone());
+        self.symtable.current_mut().add_type(enum_.type_.clone());
         TypeOption::None
     }
 

@@ -8,21 +8,9 @@ use std::vec;
 
 use crate::{
     ast::ast::*,
-    errors::errors::{
-        Diagnostic,
-        DiagnosticKind
-    },
-    frontend::lexer::token::{
-        Token,
-        TokenType
-    },
-    semantic::types::{
-        Type,
-        TypeKind,
-        UserType,
-        UserTypeKind,
-        Modifiers
-    },
+    errors::errors::{Diagnostic, DiagnosticKind},
+    frontend::lexer::token::{Token, TokenType},
+    semantic::types::{Modifiers, Type, TypeKind, UserType, UserTypeKind},
     utils::Position,
 };
 
@@ -58,12 +46,15 @@ impl Parser {
     pub fn parse(&mut self) -> Module {
         self.expect(
             TokenType::Module,
-            format!("Expected module declaration at the beginning of the file, got {:?}", self.peek())
+            format!(
+                "Expected module declaration at the beginning of the file, got {:?}",
+                self.peek()
+            ),
         );
 
         let name = self.expect(
             TokenType::Identifier,
-            format!("Expected module name after 'module', got {:?}", self.peek())
+            format!("Expected module name after 'module', got {:?}", self.peek()),
         );
 
         // while self.match_token(vec![TokenType::Dot]) {
@@ -76,10 +67,13 @@ impl Parser {
         // }
 
         let s = self.filename.split("/").collect::<Vec<&str>>();
-        let f = *s[s.len()-1].split(".").collect::<Vec<&str>>().first().unwrap();
+        let f = *s[s.len() - 1]
+            .split(".")
+            .collect::<Vec<&str>>()
+            .first()
+            .unwrap();
 
-        if (name.lexeme.as_str() == f)
-           || (name.lexeme.as_str() == s[s.len()-2]) {
+        if (name.lexeme.as_str() == f) || (name.lexeme.as_str() == s[s.len() - 2]) {
             // do nothing
         } else {
             self.error(
@@ -96,15 +90,18 @@ impl Parser {
         if name.lexeme.len() > 20 {
             self.error(
                 name.clone(),
-                format!("Module name is {:?} characters long which exceeds the 20 character limit.", name.lexeme.len()),
-                None
+                format!(
+                    "Module name is {:?} characters long which exceeds the 20 character limit.",
+                    name.lexeme.len()
+                ),
+                None,
             );
         }
-        
+
         self.expect(
             TokenType::Semicolon,
-            format!("Expected ';' after module name, got {:?}.", self.peek())
-        ); 
+            format!("Expected ';' after module name, got {:?}.", self.peek()),
+        );
 
         let mut module = Module {
             name: Identifier { name },
@@ -119,7 +116,7 @@ impl Parser {
             module.statements.push(statement);
         }
 
-        module        
+        module
     }
 
     /// <Strong>Top Level Statements:</strong><br>
@@ -128,22 +125,17 @@ impl Parser {
         let x: Box<Statement>;
         if self.match_token(vec![TokenType::Import]) {
             x = Box::new(self.import_statement());
-        }
-        else if self.match_token(vec![TokenType::Func]) {
+        } else if self.match_token(vec![TokenType::Func]) {
             x = Box::new(self.function_declaration());
-        }
-        else if self.match_token(vec![TokenType::Struct]) {
+        } else if self.match_token(vec![TokenType::Struct]) {
             x = Box::new(self.struct_declaration());
-        }
-        else if self.match_token(vec![TokenType::Enum]) {
+        } else if self.match_token(vec![TokenType::Enum]) {
             x = Box::new(self.enum_declaration());
-        }
-        else if self.match_token(vec![TokenType::Const]) {
+        } else if self.match_token(vec![TokenType::Const]) {
             x = Box::new(self.variable_declaration(true));
         } else if self.match_token(vec![TokenType::Export]) {
             x = Box::new(self.export_block());
-        }
-        else {
+        } else {
             x = Box::new(self.statement());
         }
 
@@ -159,13 +151,13 @@ impl Parser {
 
         let mut path = self.expect(
             TokenType::Identifier,
-            format!("Expected module name after 'import', got {:?}", self.peek())
+            format!("Expected module name after 'import', got {:?}", self.peek()),
         );
 
         while self.match_token(vec![TokenType::Dot]) {
             let next = self.expect(
                 TokenType::Identifier,
-                format!("Expected module name after '.', got {:?}", self.peek())
+                format!("Expected module name after '.', got {:?}", self.peek()),
             );
 
             path.lexeme += format!(".{}", next.lexeme).as_str();
@@ -173,30 +165,31 @@ impl Parser {
 
         let mut alias: Option<String> = None;
         if self.match_token(vec![TokenType::As]) {
-            alias = Some(self.expect(
-                TokenType::Identifier,
-                format!("Expected alias name after 'as', got {:?}", self.peek())
-            ).lexeme);
+            alias = Some(
+                self.expect(
+                    TokenType::Identifier,
+                    format!("Expected alias name after 'as', got {:?}", self.peek()),
+                )
+                .lexeme,
+            );
         }
 
         self.expect(
             TokenType::Semicolon,
-            format!("Expected ';' after import statement, got {:?}", self.peek())
+            format!("Expected ';' after import statement, got {:?}", self.peek()),
         );
 
         let import = Import {
             path: Expression {
-                kind: ExpressionKind::Identifier(Box::new(Identifier {
-                    name: path.clone()
-                })),
+                kind: ExpressionKind::Identifier(Box::new(Identifier { name: path.clone() })),
                 pos: Position {
                     start_line: start.line,
                     end_line: path.line,
                     start_pos: start.pos,
-                    end_pos: path.pos
-                }
+                    end_pos: path.pos,
+                },
             },
-            alias
+            alias,
         };
 
         self.add_import(import.clone());
@@ -207,8 +200,8 @@ impl Parser {
                 start_line: start.line,
                 end_line: self.previous().line,
                 start_pos: start.pos,
-                end_pos: self.previous().pos
-            }
+                end_pos: self.previous().pos,
+            },
         }
     }
 
@@ -221,78 +214,98 @@ impl Parser {
     fn function_declaration(&mut self) -> Statement {
         let start = self.tokens[self.current].clone();
         let mut is_method = false;
-        let mut struct_name =  Token::new(TokenType::Identifier, String::from(""), 0, 0);
+        let mut struct_name = Token::new(TokenType::Identifier, String::from(""), 0, 0);
         let mut struct_ref_name = Token::new(TokenType::Identifier, String::from(""), 0, 0);
+        let mut is_static = false;
 
         if self.match_token(vec![TokenType::LeftParen]) {
             is_method = true;
 
-            struct_name = self.expect(
-                TokenType::Identifier,
-                format!("Expected struct name, got {:?}", self.peek()).to_string()
-            );
-
-            self.expect(
-                TokenType::Colon,
-                format!("Expected ':' after struct name, got {:?}", self.peek()).to_string()
-            );
-
             struct_ref_name = self.expect(
                 TokenType::Identifier,
-                format!("Expected struct reference name, got {:?}", self.peek()).to_string()
+                format!("Expected struct name, got {:?}", self.peek()).to_string(),
             );
 
-            self.expect(
-                TokenType::RightParen,
-                format!("Expected ')', got {:?}", self.peek()).to_string()
-            );
+            if self.match_token(vec![TokenType::RightParen]) {
+                struct_name = struct_ref_name.clone();
+                struct_ref_name = Token::new(TokenType::Identifier, String::from(""), 0, 0);
+                is_static = true;
+            } else {
+                self.expect(
+                    TokenType::Colon,
+                    format!("Expected ':' after struct name, got {:?}", self.peek()).to_string(),
+                );
+
+                struct_name = self.expect(
+                    TokenType::Identifier,
+                    format!("Expected struct reference name, got {:?}", self.peek()).to_string(),
+                );
+
+                self.expect(
+                    TokenType::RightParen,
+                    format!("Expected ')', got {:?}", self.peek()).to_string(),
+                );
+            }
         }
 
         let name = self.expect(
             TokenType::Identifier,
-            format!("Expected function name, got {:?}", self.peek()).to_string()
+            format!("Expected function name, got {:?}", self.peek()).to_string(),
         );
 
         self.expect(
             TokenType::LeftParen,
-            format!("Expected '(' after function name, got {:?}", self.peek()).to_string()
+            format!("Expected '(' after function name, got {:?}", self.peek()).to_string(),
         );
 
         let parameters = self.parameters();
         self.expect(
             TokenType::RightParen,
-            format!("Expected ')' after parameters, got {:?}", self.peek()).to_string()
+            format!("Expected ')' after parameters, got {:?}", self.peek()).to_string(),
         );
 
         self.expect(
             TokenType::Colon,
-            format!("Expected ':' before function type, got {:?}", self.peek()).to_string()
+            format!("Expected ':' before function type, got {:?}", self.peek()).to_string(),
         );
 
-        let type_ = self.type_annotation(true, true);
+        let mut type_ = self.type_annotation(true, true);
+
+        if type_.modifiers.is_static {
+            self.error(
+                self.previous(),
+                "'static' modifier is only allowed on variable declarations.".to_string(),
+                Some(vec![
+                    "Remove 'static' modifier and use 'func (Object) x()' instead.".to_string(),
+                ]),
+            )
+        }
+        type_.modifiers.is_static = is_static;
 
         let body: Statement;
         if type_.modifiers.is_extern {
             body = Statement {
-                kind: StatementKind::Block(Box::new(Block {
-                    statements: vec![]
-                })),
+                kind: StatementKind::Block(Box::new(Block { statements: vec![] })),
                 pos: Position {
                     start_line: start.line,
                     end_line: start.line,
                     start_pos: start.pos,
-                    end_pos: start.pos
-                }
+                    end_pos: start.pos,
+                },
             };
 
             self.expect(
                 TokenType::Semicolon,
-                format!("Expected ';' after extern function declaration, got {:?}", self.peek()).to_string()
+                format!(
+                    "Expected ';' after extern function declaration, got {:?}",
+                    self.peek()
+                )
+                .to_string(),
             );
         } else {
             self.expect(
                 TokenType::LeftBrace,
-                format!("Expected '{{' before function body, got {:?}", self.peek()).to_string()
+                format!("Expected '{{' before function body, got {:?}", self.peek()).to_string(),
             );
 
             body = self.block_statement();
@@ -301,16 +314,13 @@ impl Parser {
         Statement {
             kind: StatementKind::Function(Box::new(Function {
                 name: Expression {
-                    kind: ExpressionKind::Identifier(Box::new(Identifier {
-                        name: name.clone()
-                    })),
+                    kind: ExpressionKind::Identifier(Box::new(Identifier { name: name.clone() })),
                     pos: Position {
                         start_line: start.line,
                         end_line: name.line,
                         start_pos: start.pos,
-                        end_pos: name.pos
+                        end_pos: name.pos,
                     },
-                    
                 },
                 parameters,
                 type_,
@@ -318,37 +328,34 @@ impl Parser {
                 is_method,
                 obj_name: Some(Expression {
                     kind: ExpressionKind::Identifier(Box::new(Identifier {
-                        name: struct_name.clone()
+                        name: struct_name.clone(),
                     })),
                     pos: Position {
                         start_line: start.line,
                         end_line: struct_name.line,
                         start_pos: start.pos,
-                        end_pos: struct_name.pos
+                        end_pos: struct_name.pos,
                     },
-                    
                 }),
                 obj_ref_name: Some(Expression {
                     kind: ExpressionKind::Identifier(Box::new(Identifier {
-                        name: struct_ref_name.clone()
+                        name: struct_ref_name.clone(),
                     })),
                     pos: Position {
                         start_line: start.line,
                         end_line: struct_ref_name.line,
                         start_pos: struct_name.pos,
-                        end_pos: struct_ref_name.pos
+                        end_pos: struct_ref_name.pos,
                     },
-                    
-                })
+                }),
             })),
             pos: Position {
                 start_line: start.line,
                 end_line: self.previous().line,
                 start_pos: start.pos,
-                end_pos: self.previous().pos
-            }
+                end_pos: self.previous().pos,
+            },
         }
-
     }
 
     fn parameters(&mut self) -> Vec<Variable> {
@@ -359,12 +366,12 @@ impl Parser {
             loop {
                 let name = self.expect(
                     TokenType::Identifier,
-                    format!("Expected parameter name, got {:?}", self.peek()).to_string()
+                    format!("Expected parameter name, got {:?}", self.peek()).to_string(),
                 );
 
                 self.expect(
                     TokenType::Colon,
-                    format!("Expected ':' after parameter name, got {:?}", self.peek()).to_string()
+                    format!("Expected ':' after parameter name, got {:?}", self.peek()).to_string(),
                 );
 
                 let type_ = self.type_annotation(false, true);
@@ -376,20 +383,19 @@ impl Parser {
                 parameters.push(Variable {
                     name: Expression {
                         kind: ExpressionKind::Identifier(Box::new(Identifier {
-                            name: name.clone()
+                            name: name.clone(),
                         })),
                         pos: Position {
                             start_line: start.line,
                             end_line: name.line,
                             start_pos: start.pos,
-                            end_pos: name.pos
+                            end_pos: name.pos,
                         },
-                        
                     },
                     value,
                     type_: type_.clone(),
                     is_field: false,
-                    owner: None
+                    owner: None,
                 });
 
                 if !self.match_token(vec![TokenType::Comma]) {
@@ -402,25 +408,22 @@ impl Parser {
     }
 
     fn type_annotation(&mut self, can_have_modifiers: bool, can_have_type: bool) -> Type {
-        let mut modifiers = Modifiers::new(
-            false,
-            false,
-            false,
-            false,
-            false
-        );
+        let mut modifiers = Modifiers::new(false, false, false, false, false);
 
         loop {
             if self.match_token(vec![TokenType::Export]) {
                 self.error(
                     self.previous(),
-                    "Can only export symbols in an export block at the end of a source file.".to_string(),
-                    None
+                    "Can only export symbols in an export block at the end of a source file."
+                        .to_string(),
+                    None,
                 );
             }
             if self.match_token(vec![
                 TokenType::Pub,
-                TokenType::Extern, TokenType::Static, TokenType::Const
+                TokenType::Extern,
+                TokenType::Static,
+                TokenType::Const,
             ]) {
                 if can_have_modifiers {
                     modifiers.from_tokentype(self.previous().kind);
@@ -428,7 +431,7 @@ impl Parser {
                     self.error(
                         self.previous(),
                         format!("Unexpected modifier {:?}", self.previous().kind).to_string(),
-                        None
+                        None,
                     )
                 }
             } else {
@@ -444,26 +447,21 @@ impl Parser {
     }
 
     fn type_(&mut self, can_have_type: bool) -> Type {
-        let start = self.tokens[self.current-1].clone();
-        let mut ident: Token = Token::new(
-            TokenType::Identifier,
-            String::from(""),
-            0,
-            0
-        );
+        let start = self.tokens[self.current - 1].clone();
+        let mut ident: Token = Token::new(TokenType::Identifier, String::from(""), 0, 0);
         let mut kind = TypeKind::Void;
         let mut found_type = false;
 
         if can_have_type {
             ident = self.expect(
                 TokenType::Identifier,
-                format!("Expected type name, got {:?}", self.peek()).to_string()
+                format!("Expected type name, got {:?}", self.peek()).to_string(),
             );
 
             if self.match_token(vec![TokenType::Dot]) {
                 let mut suffix = self.expect(
                     TokenType::Identifier,
-                    format!("Expected type name after '.', got {:?}", self.peek()).to_string()
+                    format!("Expected type name after '.', got {:?}", self.peek()).to_string(),
                 );
 
                 suffix.lexeme = ident.clone().lexeme + format!(".{}", suffix.lexeme).as_str();
@@ -471,7 +469,7 @@ impl Parser {
                 while self.match_token(vec![TokenType::Dot]) {
                     let x = self.expect(
                         TokenType::Identifier,
-                        format!("Expected type name after '.', got {:?}", self.peek()).to_string()
+                        format!("Expected type name after '.', got {:?}", self.peek()).to_string(),
                     );
 
                     suffix.lexeme += format!(".{}", x.lexeme).as_str();
@@ -480,7 +478,7 @@ impl Parser {
                 found_type = true;
                 kind = TypeKind::UserType(UserType {
                     kind: UserTypeKind::Unknown,
-                    name: suffix.lexeme
+                    name: suffix.lexeme,
                 });
             }
 
@@ -496,13 +494,11 @@ impl Parser {
                 }
                 self.expect(
                     TokenType::RightBracket,
-                    format!("Expected ']' after array type, got {:?}", self.peek()).to_string()
+                    format!("Expected ']' after array type, got {:?}", self.peek()).to_string(),
                 );
-                
+
                 match kind {
-                    TypeKind::Void => {
-                        kind = Type::from_string(ident.lexeme.as_str())
-                    }
+                    TypeKind::Void => kind = Type::from_string(ident.lexeme.as_str()),
                     _ => {}
                 }
 
@@ -515,10 +511,10 @@ impl Parser {
                             start_line: start.line,
                             end_line: ident.line,
                             start_pos: start.pos,
-                            end_pos: ident.pos
-                        }
+                            end_pos: ident.pos,
+                        },
                     ),
-                    dimension
+                    dimension,
                 );
             } else {
                 if !found_type {
@@ -531,11 +527,10 @@ impl Parser {
                 self.error(
                     self.peek(),
                     format!("Unexpected type name {:?}", self.peek()).to_string(),
-                    None
+                    None,
                 );
             }
         }
-        
 
         Type::new(
             kind,
@@ -544,8 +539,8 @@ impl Parser {
                 start_line: start.line,
                 end_line: ident.line,
                 start_pos: start.pos,
-                end_pos: ident.pos
-            }
+                end_pos: ident.pos,
+            },
         )
     }
 
@@ -564,19 +559,17 @@ impl Parser {
 
         self.expect(
             TokenType::RightBrace,
-            format!("Expected '}}' after block statement, got {:?}", self.peek()).to_string()
+            format!("Expected '}}' after block statement, got {:?}", self.peek()).to_string(),
         );
 
         Statement {
-            kind: StatementKind::Block(Box::new(Block {
-                statements
-            })),
+            kind: StatementKind::Block(Box::new(Block { statements })),
             pos: Position {
                 start_line: start.line,
                 end_line: self.previous().line,
                 start_pos: start.pos,
-                end_pos: self.previous().pos
-            }
+                end_pos: self.previous().pos,
+            },
         }
     }
 
@@ -585,7 +578,7 @@ impl Parser {
 
         let name = self.expect(
             TokenType::Identifier,
-            format!("Expected struct name, got {:?}", self.peek())
+            format!("Expected struct name, got {:?}", self.peek()),
         );
 
         let mut type_ = Type::new(
@@ -598,10 +591,10 @@ impl Parser {
                 start_line: name.line,
                 end_line: name.line,
                 start_pos: name.pos,
-                end_pos: name.pos
-            }
+                end_pos: name.pos,
+            },
         );
-        
+
         if self.match_token(vec![TokenType::Colon]) {
             type_.modifiers = self.type_annotation(true, false).modifiers;
         }
@@ -611,27 +604,24 @@ impl Parser {
         Statement {
             kind: StatementKind::Struct(Box::new(Struct {
                 name: Expression {
-                    kind: ExpressionKind::Identifier(Box::new(Identifier {
-                        name: name.clone()
-                    })),
+                    kind: ExpressionKind::Identifier(Box::new(Identifier { name: name.clone() })),
                     pos: Position {
                         start_line: start.line,
                         end_line: name.line,
                         start_pos: start.pos,
-                        end_pos: name.pos
+                        end_pos: name.pos,
                     },
-                    
                 },
                 fields,
                 methods: vec![],
-                type_
+                type_,
             })),
             pos: Position {
                 start_line: start.line,
                 end_line: self.previous().line,
                 start_pos: start.pos,
-                end_pos: self.previous().pos
-            }
+                end_pos: self.previous().pos,
+            },
         }
     }
 
@@ -641,18 +631,18 @@ impl Parser {
 
         self.expect(
             TokenType::LeftBrace,
-            format!("Expected '{{' before struct fields, got {:?}", self.peek()).to_string()
+            format!("Expected '{{' before struct fields, got {:?}", self.peek()).to_string(),
         );
 
         while !self.check(TokenType::RightBrace) && !self.is_at_end() {
             let name = self.expect(
                 TokenType::Identifier,
-                format!("Expected field name, got {:?}", self.peek()).to_string()
+                format!("Expected field name, got {:?}", self.peek()).to_string(),
             );
 
             self.expect(
                 TokenType::Colon,
-                format!("Expected ':' after field name, got {:?}", self.peek()).to_string()
+                format!("Expected ':' after field name, got {:?}", self.peek()).to_string(),
             );
 
             let type_ = self.type_annotation(true, true);
@@ -663,20 +653,18 @@ impl Parser {
 
             fields.push(Variable {
                 name: Expression {
-                    kind: ExpressionKind::Identifier(Box::new(Identifier {
-                        name: name.clone()
-                    })),
+                    kind: ExpressionKind::Identifier(Box::new(Identifier { name: name.clone() })),
                     pos: Position {
                         start_line: start.line,
                         end_line: name.line,
                         start_pos: start.pos,
-                        end_pos: name.pos
+                        end_pos: name.pos,
                     },
                 },
                 value,
                 type_: type_.clone(),
                 is_field: true,
-                owner: Some(owner.clone())
+                owner: Some(owner.clone()),
             });
 
             if !self.match_token(vec![TokenType::Comma]) {
@@ -686,7 +674,7 @@ impl Parser {
 
         self.expect(
             TokenType::RightBrace,
-            format!("Expected '}}' after enum variants, got {:?}", self.peek()).to_string()
+            format!("Expected '}}' after enum variants, got {:?}", self.peek()).to_string(),
         );
 
         fields
@@ -697,21 +685,21 @@ impl Parser {
 
         let name = self.expect(
             TokenType::Identifier,
-            format!("Expected enum name, got {:?}", self.peek()).to_string()
+            format!("Expected enum name, got {:?}", self.peek()).to_string(),
         );
 
         let mut type_ = Type::new(
             TypeKind::UserType(UserType {
                 kind: UserTypeKind::Enum,
-                name: name.lexeme.clone()
+                name: name.lexeme.clone(),
             }),
             Modifiers::new(false, false, false, false, false),
             Position {
                 start_line: name.line,
                 end_line: name.line,
                 start_pos: name.pos,
-                end_pos: name.pos
-            }
+                end_pos: name.pos,
+            },
         );
 
         if self.match_token(vec![TokenType::Colon]) {
@@ -720,46 +708,43 @@ impl Parser {
 
         self.expect(
             TokenType::LeftBrace,
-            format!("Expected '{{' before enum variants, got {:?}", self.peek()).to_string()
+            format!("Expected '{{' before enum variants, got {:?}", self.peek()).to_string(),
         );
 
-        let variants = self.enum_variants();
+        let variants = self.enum_variants(name.lexeme.clone());
 
         Statement {
             kind: StatementKind::Enum(Box::new(Enum {
                 name: Expression {
-                    kind: ExpressionKind::Identifier(Box::new(Identifier {
-                        name: name.clone()
-                    })),
+                    kind: ExpressionKind::Identifier(Box::new(Identifier { name: name.clone() })),
                     pos: Position {
                         start_line: start.line,
                         end_line: name.line,
                         start_pos: start.pos,
-                        end_pos: name.pos
+                        end_pos: name.pos,
                     },
-                    
                 },
                 variants,
                 methods: vec![],
-                type_
+                type_,
             })),
             pos: Position {
                 start_line: start.line,
                 end_line: self.previous().line,
                 start_pos: start.pos,
-                end_pos: self.previous().pos
-            }
+                end_pos: self.previous().pos,
+            },
         }
     }
 
-    fn enum_variants(&mut self) -> Vec<Variable> {
+    fn enum_variants(&mut self, enum_: String) -> Vec<Variable> {
         let mut variants = Vec::new();
 
         while !self.check(TokenType::RightBrace) && !self.is_at_end() {
             let start = self.tokens[self.current].clone();
             let name = self.expect(
                 TokenType::Identifier,
-                format!("Expected variant name, got {:?}", self.peek()).to_string()
+                format!("Expected variant name, got {:?}", self.peek()).to_string(),
             );
 
             let mut value: Option<Expression> = None;
@@ -769,33 +754,30 @@ impl Parser {
 
             variants.push(Variable {
                 name: Expression {
-                    kind: ExpressionKind::Identifier(Box::new(Identifier {
-                        name: name.clone()
-                    })),
+                    kind: ExpressionKind::Identifier(Box::new(Identifier { name: name.clone() })),
                     pos: Position {
                         start_line: start.line,
                         end_line: name.line,
                         start_pos: start.pos,
-                        end_pos: name.pos
+                        end_pos: name.pos,
                     },
-                    
                 },
                 value,
                 type_: Type::new(
                     TypeKind::UserType(UserType {
                         kind: UserTypeKind::Enum,
-                        name: name.lexeme.clone()
+                        name: enum_.clone(),
                     }),
                     Modifiers::new(false, true, false, true, false),
                     Position {
                         start_line: start.line,
                         end_line: name.line,
                         start_pos: start.pos,
-                        end_pos: name.pos
-                    }
+                        end_pos: name.pos,
+                    },
                 ),
                 is_field: false,
-                owner: None
+                owner: None,
             });
 
             if !self.match_token(vec![TokenType::Comma]) {
@@ -805,7 +787,7 @@ impl Parser {
 
         self.expect(
             TokenType::RightBrace,
-            format!("Expected '}}' after enum variants, got {:?}", self.peek()).to_string()
+            format!("Expected '}}' after enum variants, got {:?}", self.peek()).to_string(),
         );
 
         variants
@@ -815,12 +797,12 @@ impl Parser {
         let start = self.tokens[self.current].clone();
         let name = self.expect(
             TokenType::Identifier,
-            format!("Expected variable name, got {:?}", self.peek()).to_string()
+            format!("Expected variable name, got {:?}", self.peek()).to_string(),
         );
 
         self.expect(
             TokenType::Colon,
-            format!("Expected ':' after variable name, got {:?}", self.peek()).to_string()
+            format!("Expected ':' after variable name, got {:?}", self.peek()).to_string(),
         );
         let mut type_ = self.type_annotation(true, true);
 
@@ -833,34 +815,35 @@ impl Parser {
 
         let semi = self.expect(
             TokenType::Semicolon,
-            format!("Expected ';' after variable declaration, got {:?}", self.peek()).to_string()
+            format!(
+                "Expected ';' after variable declaration, got {:?}",
+                self.peek()
+            )
+            .to_string(),
         );
 
         Statement {
             kind: StatementKind::Variable(Box::new(Variable {
                 name: Expression {
-                    kind: ExpressionKind::Identifier(Box::new(Identifier {
-                        name: name.clone()
-                    })),
+                    kind: ExpressionKind::Identifier(Box::new(Identifier { name: name.clone() })),
                     pos: Position {
                         start_line: start.line,
                         end_line: name.line,
                         start_pos: start.pos,
-                        end_pos: name.pos
+                        end_pos: name.pos,
                     },
-                    
                 },
                 value,
                 type_,
                 is_field: false,
-                owner: None
+                owner: None,
             })),
             pos: Position {
                 start_line: start.line,
                 end_line: semi.line,
                 start_pos: start.pos,
-                end_pos: semi.pos
-            }
+                end_pos: semi.pos,
+            },
         }
     }
 
@@ -879,7 +862,7 @@ impl Parser {
                     self.error(
                         self.peek(),
                         "Expected identifier in export block".to_string(),
-                        None
+                        None,
                     );
                 }
             }
@@ -895,7 +878,7 @@ impl Parser {
                         self.error(
                             self.peek(),
                             "Expected identifier in export block".to_string(),
-                            None
+                            None,
                         );
                     }
                 }
@@ -903,7 +886,11 @@ impl Parser {
 
             self.expect(
                 TokenType::RightBrace,
-                format!("Expected closing '}}' after export block, got {:?}", self.peek()).to_string()
+                format!(
+                    "Expected closing '}}' after export block, got {:?}",
+                    self.peek()
+                )
+                .to_string(),
             );
         } else {
             let expr = self.expression();
@@ -916,22 +903,22 @@ impl Parser {
                     self.error(
                         self.peek(),
                         "Expected identifier in export block".to_string(),
-                        None
+                        None,
                     );
                 }
             }
         }
-    
+
         Statement {
             kind: StatementKind::Export(Box::new(Export {
-                statements: identifiers
+                statements: identifiers,
             })),
             pos: Position {
                 start_line: start.line,
                 end_line: self.previous().line,
                 start_pos: start.pos,
-                end_pos: self.previous().pos
-            }
+                end_pos: self.previous().pos,
+            },
         }
     }
 
@@ -972,7 +959,7 @@ impl Parser {
 
         self.expect(
             TokenType::Semicolon,
-            format!("Expected ';' after statement, got {:?}", self.peek()).to_string()
+            format!("Expected ';' after statement, got {:?}", self.peek()).to_string(),
         );
 
         statement
@@ -983,14 +970,22 @@ impl Parser {
 
         self.expect(
             TokenType::LeftParen,
-            format!("Expected '(' before if-statement condition, got {:?}", self.peek()).to_string()
+            format!(
+                "Expected '(' before if-statement condition, got {:?}",
+                self.peek()
+            )
+            .to_string(),
         );
 
         let condition = self.expression();
 
         self.expect(
             TokenType::RightParen,
-            format!("Expected ')' after if-statement condition, got {:?}", self.peek()).to_string()
+            format!(
+                "Expected ')' after if-statement condition, got {:?}",
+                self.peek()
+            )
+            .to_string(),
         );
 
         let then_branch = self.statement();
@@ -1003,14 +998,14 @@ impl Parser {
             kind: StatementKind::If(Box::new(If {
                 condition,
                 then_branch: Box::new(then_branch),
-                else_branch
+                else_branch,
             })),
             pos: Position {
                 start_line: start.line,
                 end_line: self.previous().line,
                 start_pos: start.pos,
-                end_pos: self.previous().pos
-            }
+                end_pos: self.previous().pos,
+            },
         }
     }
 
@@ -1019,14 +1014,22 @@ impl Parser {
 
         self.expect(
             TokenType::LeftParen,
-            format!("Expected '(' before while-statement condition, got {:?}", self.peek()).to_string()
+            format!(
+                "Expected '(' before while-statement condition, got {:?}",
+                self.peek()
+            )
+            .to_string(),
         );
 
         let condition = self.expression();
 
         self.expect(
             TokenType::RightParen,
-            format!("Expected ')' after while-statement condition, got {:?}", self.peek()).to_string()
+            format!(
+                "Expected ')' after while-statement condition, got {:?}",
+                self.peek()
+            )
+            .to_string(),
         );
 
         let body = self.statement();
@@ -1034,14 +1037,14 @@ impl Parser {
         Statement {
             kind: StatementKind::While(Box::new(While {
                 condition,
-                body: Box::new(body)
+                body: Box::new(body),
             })),
             pos: Position {
                 start_line: start.line,
                 end_line: self.previous().line,
                 start_pos: start.pos,
-                end_pos: self.previous().pos
-            }
+                end_pos: self.previous().pos,
+            },
         }
     }
 
@@ -1050,9 +1053,13 @@ impl Parser {
 
         self.expect(
             TokenType::LeftParen,
-            format!("Expected '(' before for-statement condition, got {:?}", self.peek()).to_string()
+            format!(
+                "Expected '(' before for-statement condition, got {:?}",
+                self.peek()
+            )
+            .to_string(),
         );
-        
+
         let mut initializer = None;
         let mut condition = None;
         let mut increment = None;
@@ -1066,7 +1073,11 @@ impl Parser {
 
             self.expect(
                 TokenType::Semicolon,
-                format!("Expected ';' after for-statement initializer, got {:?}", self.peek()).to_string()
+                format!(
+                    "Expected ';' after for-statement initializer, got {:?}",
+                    self.peek()
+                )
+                .to_string(),
             );
         }
 
@@ -1075,7 +1086,11 @@ impl Parser {
 
             self.expect(
                 TokenType::Semicolon,
-                format!("Expected ';' after for-statement condition, got {:?}", self.peek()).to_string()
+                format!(
+                    "Expected ';' after for-statement condition, got {:?}",
+                    self.peek()
+                )
+                .to_string(),
             );
         }
 
@@ -1084,7 +1099,11 @@ impl Parser {
 
             self.expect(
                 TokenType::RightParen,
-                format!("Expected ')' after for-statement increment, got {:?}", self.peek()).to_string()
+                format!(
+                    "Expected ')' after for-statement increment, got {:?}",
+                    self.peek()
+                )
+                .to_string(),
             );
         }
 
@@ -1095,14 +1114,14 @@ impl Parser {
                 initializer,
                 condition,
                 increment,
-                body: Box::new(body)
+                body: Box::new(body),
             })),
             pos: Position {
                 start_line: start.line,
                 end_line: self.previous().line,
                 start_pos: start.pos,
-                end_pos: self.previous().pos
-            }
+                end_pos: self.previous().pos,
+            },
         }
     }
 
@@ -1116,7 +1135,7 @@ impl Parser {
 
         self.expect(
             TokenType::Semicolon,
-            format!("Expected ';' after return statement, got {:?}", self.peek()).to_string()
+            format!("Expected ';' after return statement, got {:?}", self.peek()).to_string(),
         );
 
         Statement {
@@ -1126,15 +1145,15 @@ impl Parser {
                     start_line: start.line,
                     end_line: self.previous().line,
                     start_pos: start.pos,
-                    end_pos: self.previous().pos
-                }
+                    end_pos: self.previous().pos,
+                },
             })),
             pos: Position {
                 start_line: start.line,
                 end_line: self.previous().line,
                 start_pos: start.pos,
-                end_pos: self.previous().pos
-            }
+                end_pos: self.previous().pos,
+            },
         }
     }
 
@@ -1143,19 +1162,19 @@ impl Parser {
 
         self.expect(
             TokenType::Semicolon,
-            format!("Expected ';' after break statement, got {:?}", self.peek()).to_string()
+            format!("Expected ';' after break statement, got {:?}", self.peek()).to_string(),
         );
 
         let pos = Position {
             start_line: start.line,
             end_line: self.previous().line,
             start_pos: start.pos,
-            end_pos: self.previous().pos
+            end_pos: self.previous().pos,
         };
 
         Statement {
             kind: StatementKind::Break(Box::new(Break { pos: pos.clone() })),
-            pos
+            pos,
         }
     }
 
@@ -1164,19 +1183,23 @@ impl Parser {
 
         self.expect(
             TokenType::Semicolon,
-            format!("Expected ';' after continue statement, got {:?}", self.peek()).to_string()
+            format!(
+                "Expected ';' after continue statement, got {:?}",
+                self.peek()
+            )
+            .to_string(),
         );
 
         let pos = Position {
             start_line: start.line,
             end_line: self.previous().line,
             start_pos: start.pos,
-            end_pos: self.previous().pos
+            end_pos: self.previous().pos,
         };
 
         Statement {
             kind: StatementKind::Continue(Box::new(Continue { pos: pos.clone() })),
-            pos
+            pos,
         }
     }
 
@@ -1189,8 +1212,8 @@ impl Parser {
                 start_line: expression.pos.start_line,
                 end_line: self.previous().line,
                 start_pos: expression.pos.start_pos,
-                end_pos: self.previous().pos
-            }
+                end_pos: self.previous().pos,
+            },
         }
     }
 
@@ -1218,16 +1241,15 @@ impl Parser {
                 kind: ExpressionKind::Assignment(Box::new(Assignment {
                     operator: operator.clone(),
                     left: Box::new(expression.clone()),
-                    right: Box::new(value)
+                    right: Box::new(value),
                 })),
                 pos: Position {
                     start_line: expression.pos.start_line,
                     end_line: expression.pos.end_line,
                     start_pos: expression.pos.start_pos,
-                    end_pos: expression.pos.end_pos
+                    end_pos: expression.pos.end_pos,
                 },
-                
-            }
+            };
         }
 
         expression
@@ -1244,15 +1266,14 @@ impl Parser {
                 kind: ExpressionKind::Binary(Box::new(Binary {
                     operator: operator.clone(),
                     left: Box::new(expression.clone()),
-                    right: Box::new(right)
+                    right: Box::new(right),
                 })),
                 pos: Position {
                     start_line: expression.pos.start_line,
                     end_line: expression.pos.end_line,
                     start_pos: expression.pos.start_pos,
-                    end_pos: expression.pos.end_pos
+                    end_pos: expression.pos.end_pos,
                 },
-                
             }
         }
 
@@ -1270,15 +1291,14 @@ impl Parser {
                 kind: ExpressionKind::Binary(Box::new(Binary {
                     operator: operator.clone(),
                     left: Box::new(expression.clone()),
-                    right: Box::new(right)
+                    right: Box::new(right),
                 })),
                 pos: Position {
                     start_line: expression.pos.start_line,
                     end_line: expression.pos.end_line,
                     start_pos: expression.pos.start_pos,
-                    end_pos: expression.pos.end_pos
+                    end_pos: expression.pos.end_pos,
                 },
-                
             }
         }
 
@@ -1296,15 +1316,14 @@ impl Parser {
                 kind: ExpressionKind::Binary(Box::new(Binary {
                     operator: operator.clone(),
                     left: Box::new(expression.clone()),
-                    right: Box::new(right)
+                    right: Box::new(right),
                 })),
                 pos: Position {
                     start_line: expression.pos.start_line,
                     end_line: expression.pos.end_line,
                     start_pos: expression.pos.start_pos,
-                    end_pos: expression.pos.end_pos
+                    end_pos: expression.pos.end_pos,
                 },
-                
             }
         }
 
@@ -1315,8 +1334,10 @@ impl Parser {
         let mut expression = self.term();
 
         while self.match_token(vec![
-            TokenType::Less, TokenType::LessEquals,
-            TokenType::Greater, TokenType::GreaterEquals
+            TokenType::Less,
+            TokenType::LessEquals,
+            TokenType::Greater,
+            TokenType::GreaterEquals,
         ]) {
             let operator = self.previous();
             let right = self.term();
@@ -1325,15 +1346,14 @@ impl Parser {
                 kind: ExpressionKind::Binary(Box::new(Binary {
                     operator: operator.clone(),
                     left: Box::new(expression.clone()),
-                    right: Box::new(right)
+                    right: Box::new(right),
                 })),
                 pos: Position {
                     start_line: expression.pos.start_line,
                     end_line: expression.pos.end_line,
                     start_pos: expression.pos.start_pos,
-                    end_pos: expression.pos.end_pos
+                    end_pos: expression.pos.end_pos,
                 },
-                
             }
         }
 
@@ -1351,15 +1371,14 @@ impl Parser {
                 kind: ExpressionKind::Binary(Box::new(Binary {
                     operator: operator.clone(),
                     left: Box::new(expression.clone()),
-                    right: Box::new(right)
+                    right: Box::new(right),
                 })),
                 pos: Position {
                     start_line: expression.pos.start_line,
                     end_line: expression.pos.end_line,
                     start_pos: expression.pos.start_pos,
-                    end_pos: expression.pos.end_pos
+                    end_pos: expression.pos.end_pos,
                 },
-                
             }
         }
 
@@ -1377,15 +1396,14 @@ impl Parser {
                 kind: ExpressionKind::Binary(Box::new(Binary {
                     operator: operator.clone(),
                     left: Box::new(expression.clone()),
-                    right: Box::new(right)
+                    right: Box::new(right),
                 })),
                 pos: Position {
                     start_line: expression.pos.start_line,
                     end_line: expression.pos.end_line,
                     start_pos: expression.pos.start_pos,
-                    end_pos: expression.pos.end_pos
+                    end_pos: expression.pos.end_pos,
                 },
-                
             }
         }
 
@@ -1403,15 +1421,14 @@ impl Parser {
                 kind: ExpressionKind::Binary(Box::new(Binary {
                     operator: operator.clone(),
                     left: Box::new(expression.clone()),
-                    right: Box::new(right)
+                    right: Box::new(right),
                 })),
                 pos: Position {
                     start_line: expression.pos.start_line,
                     end_line: expression.pos.end_line,
                     start_pos: expression.pos.start_pos,
-                    end_pos: expression.pos.end_pos
+                    end_pos: expression.pos.end_pos,
                 },
-                
             }
         }
 
@@ -1427,20 +1444,21 @@ impl Parser {
                 kind: ExpressionKind::Unary(Box::new(Unary {
                     operator: operator.clone(),
                     right: Box::new(right.clone()),
-                    is_prefix: true
+                    is_prefix: true,
                 })),
                 pos: Position {
                     start_line: operator.line,
                     end_line: right.pos.end_line,
                     start_pos: operator.pos,
-                    end_pos: right.pos.end_pos
+                    end_pos: right.pos.end_pos,
                 },
-                
-            }
+            };
         }
 
         if self.check(TokenType::Identifier) {
-            if self.peek_next().kind == TokenType::PlusPlus || self.peek_next().kind == TokenType::MinusMinus {
+            if self.peek_next().kind == TokenType::PlusPlus
+                || self.peek_next().kind == TokenType::MinusMinus
+            {
                 let name = self.peek();
                 self.advance();
                 let operator = self.advance();
@@ -1449,26 +1467,24 @@ impl Parser {
                         operator: operator.clone(),
                         right: Box::new(Expression {
                             kind: ExpressionKind::Identifier(Box::new(Identifier {
-                                name: name.clone()
+                                name: name.clone(),
                             })),
                             pos: Position {
                                 start_line: name.line,
                                 end_line: operator.line,
                                 start_pos: name.pos,
-                                end_pos: operator.pos
+                                end_pos: operator.pos,
                             },
-                            
                         }),
-                        is_prefix: false
+                        is_prefix: false,
                     })),
                     pos: Position {
                         start_line: name.line,
                         end_line: operator.line,
                         start_pos: name.pos,
-                        end_pos: operator.pos
+                        end_pos: operator.pos,
                     },
-                    
-                }
+                };
             }
         }
 
@@ -1486,15 +1502,14 @@ impl Parser {
                 kind: ExpressionKind::Cast(Box::new(Cast {
                     operator: operator.clone(),
                     value: Box::new(expression.clone()),
-                    type_: type_.clone()
+                    type_: type_.clone(),
                 })),
                 pos: Position {
                     start_line: expression.pos.start_line,
                     end_line: type_.pos.end_line,
                     start_pos: expression.pos.start_pos,
-                    end_pos: type_.pos.end_pos
+                    end_pos: type_.pos.end_pos,
                 },
-                
             }
         }
 
@@ -1535,8 +1550,9 @@ impl Parser {
                 if args.len() >= 255 {
                     self.error(
                         self.peek(),
-                        format!("Cannot have more than 255 arguments, got {:?}", self.peek()).to_string(),
-                        None
+                        format!("Cannot have more than 255 arguments, got {:?}", self.peek())
+                            .to_string(),
+                        None,
                     );
                 }
 
@@ -1550,7 +1566,7 @@ impl Parser {
 
         let paren = self.expect(
             TokenType::RightParen,
-            format!("Expected ')' after arguments, got {:?}", self.peek()).to_string()
+            format!("Expected ')' after arguments, got {:?}", self.peek()).to_string(),
         );
 
         let call_expr = Expression {
@@ -1562,9 +1578,8 @@ impl Parser {
                 start_line: callee.pos.start_line,
                 end_line: paren.line,
                 start_pos: callee.pos.end_pos,
-                end_pos: paren.pos
+                end_pos: paren.pos,
             },
-            
         };
 
         if self.match_token(vec![TokenType::Dot]) {
@@ -1586,15 +1601,14 @@ impl Parser {
             current_object = Expression {
                 kind: ExpressionKind::Get(Box::new(Get {
                     object: Box::new(current_object),
-                    name: Box::new(current_name)
+                    name: Box::new(current_name),
                 })),
                 pos: Position {
                     start_line: start.line,
                     end_line: next_name.pos.end_line,
                     start_pos: start.pos,
-                    end_pos: next_name.pos.end_pos
+                    end_pos: next_name.pos.end_pos,
                 },
-                
             };
 
             current_name = next_name;
@@ -1610,40 +1624,37 @@ impl Parser {
                     right: Box::new(Expression {
                         kind: ExpressionKind::Get(Box::new(Get {
                             object: Box::new(current_object),
-                            name: Box::new(current_name.clone())
+                            name: Box::new(current_name.clone()),
                         })),
                         pos: Position {
                             start_line: start.line,
                             end_line: current_name.pos.end_line,
                             start_pos: start.pos,
-                            end_pos: current_name.pos.end_pos
+                            end_pos: current_name.pos.end_pos,
                         },
-                        
                     }),
-                    is_prefix: false
+                    is_prefix: false,
                 })),
                 pos: Position {
                     start_line: start.line,
                     end_line: self.previous().line,
                     start_pos: start.pos,
-                    end_pos: self.previous().pos
+                    end_pos: self.previous().pos,
                 },
-                
             };
         }
 
         Expression {
             kind: ExpressionKind::Get(Box::new(Get {
                 object: Box::new(current_object),
-                name: Box::new(current_name.clone())
+                name: Box::new(current_name.clone()),
             })),
             pos: Position {
                 start_line: start.line,
                 end_line: current_name.pos.end_line,
                 start_pos: start.pos,
-                end_pos: current_name.pos.end_pos
+                end_pos: current_name.pos.end_pos,
             },
-            
         }
     }
 
@@ -1654,31 +1665,25 @@ impl Parser {
 
             if self.match_token(vec![TokenType::LeftParen]) {
                 return self.finish_call(Expression {
-                    kind: ExpressionKind::Identifier(Box::new(Identifier {
-                        name: name.clone()
-                    })),
+                    kind: ExpressionKind::Identifier(Box::new(Identifier { name: name.clone() })),
                     pos: Position {
                         start_line: start.line,
                         end_line: self.previous().line,
                         start_pos: start.pos,
-                        end_pos: self.previous().pos
+                        end_pos: self.previous().pos,
                     },
-                    
                 });
             }
 
             if self.match_token(vec![TokenType::LeftBracket]) {
                 return self.index(Expression {
-                    kind: ExpressionKind::Identifier(Box::new(Identifier {
-                        name: name.clone()
-                    })),
+                    kind: ExpressionKind::Identifier(Box::new(Identifier { name: name.clone() })),
                     pos: Position {
                         start_line: start.line,
                         end_line: name.line,
                         start_pos: start.pos,
-                        end_pos: name.pos
+                        end_pos: name.pos,
                     },
-                    
                 });
             }
 
@@ -1687,22 +1692,19 @@ impl Parser {
             }
 
             return Expression {
-                kind: ExpressionKind::Identifier(Box::new(Identifier {
-                    name: name.clone()
-                })),
+                kind: ExpressionKind::Identifier(Box::new(Identifier { name: name.clone() })),
                 pos: Position {
                     start_line: start.line,
                     end_line: name.line,
                     start_pos: start.pos,
-                    end_pos: name.pos
+                    end_pos: name.pos,
                 },
-                
-            }
+            };
         } else {
             self.error(
                 self.peek(),
                 format!("Expected identifier, got {:?}", self.peek()).to_string(),
-                None
+                None,
             );
 
             Expression {
@@ -1711,9 +1713,8 @@ impl Parser {
                     start_line: start.line,
                     end_line: start.line,
                     start_pos: start.pos,
-                    end_pos: start.pos
+                    end_pos: start.pos,
                 },
-                
             }
         }
     }
@@ -1726,15 +1727,14 @@ impl Parser {
             kind: ExpressionKind::Set(Box::new(Set {
                 object: Box::new(current_object),
                 name: Box::new(current_name),
-                value: Box::new(value.clone())
+                value: Box::new(value.clone()),
             })),
             pos: Position {
                 start_line: start.line,
                 end_line: value.pos.end_line,
                 start_pos: start.pos,
-                end_pos: value.pos.end_pos
+                end_pos: value.pos.end_pos,
             },
-            
         }
     }
 
@@ -1745,15 +1745,14 @@ impl Parser {
         Expression {
             kind: ExpressionKind::Index(Box::new(Index {
                 target: Box::new(target),
-                index: Box::new(index.clone())
+                index: Box::new(index.clone()),
             })),
             pos: Position {
                 start_line: start.line,
                 end_line: index.pos.end_line,
                 start_pos: start.pos,
-                end_pos: index.pos.end_pos
+                end_pos: index.pos.end_pos,
             },
-            
         }
     }
 
@@ -1775,18 +1774,17 @@ impl Parser {
                         TokenType::Comma,
                         String::from(","),
                         start.line,
-                        start.pos
+                        start.pos,
                     ),
                     left: Box::new(index.clone()),
-                    right: Box::new(right.clone())
+                    right: Box::new(right.clone()),
                 })),
                 pos: Position {
                     start_line: start.line,
                     end_line: right.pos.end_line,
                     start_pos: start.pos,
-                    end_pos: right.pos.end_pos
+                    end_pos: right.pos.end_pos,
                 },
-                
             }
         }
 
@@ -1796,7 +1794,7 @@ impl Parser {
 
         self.expect(
             TokenType::RightBracket,
-            format!("Expected ']' after index, got {:?}", self.peek()).to_string()
+            format!("Expected ']' after index, got {:?}", self.peek()).to_string(),
         );
 
         index
@@ -1807,17 +1805,13 @@ impl Parser {
         let fields = self.finish_struct_init();
 
         Expression {
-            kind: ExpressionKind::StructInit(Box::new(StructInit {
-                name: t,
-                fields
-            })),
+            kind: ExpressionKind::StructInit(Box::new(StructInit { name: t, fields })),
             pos: Position {
                 start_line: start.line,
                 end_line: self.previous().line,
                 start_pos: start.pos,
-                end_pos: self.previous().pos
+                end_pos: self.previous().pos,
             },
-            
         }
     }
 
@@ -1827,12 +1821,12 @@ impl Parser {
         while !self.check(TokenType::RightBrace) && !self.is_at_end() {
             let name = self.expect(
                 TokenType::Identifier,
-                format!("Expected field name, got {:?}", self.peek()).to_string()
+                format!("Expected field name, got {:?}", self.peek()).to_string(),
             );
 
             self.expect(
                 TokenType::Colon,
-                format!("Expected ':' after field name, got {:?}", self.peek()).to_string()
+                format!("Expected ':' after field name, got {:?}", self.peek()).to_string(),
             );
 
             let value = self.expression();
@@ -1846,7 +1840,11 @@ impl Parser {
 
         self.expect(
             TokenType::RightBrace,
-            format!("Expected '}}' after struct initialization, got {:?}", self.peek()).to_string()
+            format!(
+                "Expected '}}' after struct initialization, got {:?}",
+                self.peek()
+            )
+            .to_string(),
         );
 
         fields
@@ -1862,37 +1860,31 @@ impl Parser {
                 self.error(
                     x.clone(),
                     format!("Cannot use primitive type as expression, got {:?}", x).to_string(),
-                    None
+                    None,
                 )
             }
 
             if self.match_token(vec![TokenType::Dot]) {
                 return self.get(Expression {
-                    kind: ExpressionKind::Identifier(Box::new(Identifier {
-                        name: x.clone()
-                    })),
+                    kind: ExpressionKind::Identifier(Box::new(Identifier { name: x.clone() })),
                     pos: Position {
                         start_line: start.line,
                         end_line: x.line,
                         start_pos: start.pos,
-                        end_pos: x.pos
+                        end_pos: x.pos,
                     },
-                    
                 });
             }
 
             if self.match_token(vec![TokenType::LeftBracket]) {
                 return self.index(Expression {
-                    kind: ExpressionKind::Identifier(Box::new(Identifier {
-                        name: x.clone()
-                    })),
+                    kind: ExpressionKind::Identifier(Box::new(Identifier { name: x.clone() })),
                     pos: Position {
                         start_line: start.line,
                         end_line: x.line,
                         start_pos: start.pos,
-                        end_pos: x.pos
+                        end_pos: x.pos,
                     },
-                    
                 });
             }
 
@@ -1902,31 +1894,36 @@ impl Parser {
 
             return Expression {
                 kind: ExpressionKind::Identifier(Box::new(Identifier {
-                    name: self.previous().clone()
+                    name: self.previous().clone(),
                 })),
                 pos: Position {
                     start_line: start.line,
                     end_line: self.previous().line,
                     start_pos: start.pos,
-                    end_pos: self.previous().pos
+                    end_pos: self.previous().pos,
                 },
-                
-            }
+            };
         }
 
-        if self.match_token(vec![TokenType::Integer, TokenType::Float, TokenType::String, TokenType::True, TokenType::False, TokenType::Null]) {
+        if self.match_token(vec![
+            TokenType::Integer,
+            TokenType::Float,
+            TokenType::String,
+            TokenType::True,
+            TokenType::False,
+            TokenType::Null,
+        ]) {
             return Expression {
                 kind: ExpressionKind::Literal(Box::new(Literal {
-                    value: self.previous().clone()
+                    value: self.previous().clone(),
                 })),
                 pos: Position {
                     start_line: start.line,
                     end_line: self.previous().line,
                     start_pos: start.pos,
-                    end_pos: self.previous().pos
+                    end_pos: self.previous().pos,
                 },
-                
-            }
+            };
         }
 
         if self.match_token(vec![TokenType::LeftParen]) {
@@ -1934,21 +1931,20 @@ impl Parser {
 
             self.expect(
                 TokenType::RightParen,
-                format!("Expected ')' after expression, got {:?}", self.peek()).to_string()
+                format!("Expected ')' after expression, got {:?}", self.peek()).to_string(),
             );
 
             return Expression {
                 kind: ExpressionKind::Grouping(Box::new(Grouping {
-                    expression: Box::new(expression)
+                    expression: Box::new(expression),
                 })),
                 pos: Position {
                     start_line: start.line,
                     end_line: self.previous().line,
                     start_pos: start.pos,
-                    end_pos: self.previous().pos
+                    end_pos: self.previous().pos,
                 },
-                
-            }
+            };
         }
 
         if self.match_token(vec![TokenType::LeftBracket]) {
@@ -1959,8 +1955,12 @@ impl Parser {
                     if elements.len() >= 255 {
                         self.error(
                             self.peek(),
-                            format!("Cannot have more than 255 elements in an array, got {:?}", self.peek()).to_string(),
-                            None
+                            format!(
+                                "Cannot have more than 255 elements in an array, got {:?}",
+                                self.peek()
+                            )
+                            .to_string(),
+                            None,
                         );
                     }
 
@@ -1974,21 +1974,18 @@ impl Parser {
 
             self.expect(
                 TokenType::RightBracket,
-                format!("Expected ']' after array elements, got {:?}", self.peek()).to_string()
+                format!("Expected ']' after array elements, got {:?}", self.peek()).to_string(),
             );
 
             return Expression {
-                kind: ExpressionKind::Array(Box::new(Array {
-                    elements
-                })),
+                kind: ExpressionKind::Array(Box::new(Array { elements })),
                 pos: Position {
                     start_line: start.line,
                     end_line: self.previous().line,
                     start_pos: start.pos,
-                    end_pos: self.previous().pos
+                    end_pos: self.previous().pos,
                 },
-                
-            }
+            };
         }
 
         if self.match_token(vec![TokenType::Eof]) {
@@ -1998,16 +1995,15 @@ impl Parser {
                     start_line: start.line,
                     end_line: self.previous().line,
                     start_pos: start.pos,
-                    end_pos: self.previous().pos
+                    end_pos: self.previous().pos,
                 },
-                
-            }
+            };
         }
 
         self.error(
             self.peek(),
             format!("Expected expression, got {:?}", self.peek()).to_string(),
-            None
+            None,
         );
 
         Expression {
@@ -2016,9 +2012,8 @@ impl Parser {
                 start_line: start.line,
                 end_line: self.previous().line,
                 start_pos: start.pos,
-                end_pos: self.previous().pos
+                end_pos: self.previous().pos,
             },
-            
         }
     }
 
@@ -2082,7 +2077,7 @@ impl Parser {
             message,
             token.line,
             token.pos,
-            self.filename.clone()
+            self.filename.clone(),
         );
 
         error.emit();
@@ -2093,7 +2088,7 @@ impl Parser {
                     i,
                     token.line,
                     token.pos,
-                    self.filename.clone()
+                    self.filename.clone(),
                 );
 
                 label.emit();
@@ -2112,9 +2107,16 @@ impl Parser {
             }
 
             match self.peek().kind {
-                TokenType::Func | TokenType::Struct | TokenType::Enum | TokenType::Var | TokenType::If | TokenType::While | TokenType::For | TokenType::Return => {
+                TokenType::Func
+                | TokenType::Struct
+                | TokenType::Enum
+                | TokenType::Var
+                | TokenType::If
+                | TokenType::While
+                | TokenType::For
+                | TokenType::Return => {
                     return;
-                },
+                }
                 _ => {}
             }
 

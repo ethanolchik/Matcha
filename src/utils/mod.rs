@@ -1,15 +1,13 @@
+pub mod compile;
+pub mod flags;
 /// Ethan Olchik
 /// src/utils/mod.rs
-
 pub mod imports;
-pub mod compile;
-pub mod module;
+pub mod macros;
 pub mod maths;
-
-//> Macro_rules
+pub mod module;
 
 //> Definitions
-
 
 /// Position struct
 /// This struct represents a position in the source code.
@@ -21,7 +19,7 @@ pub struct Position {
     pub end_line: usize,
 
     pub start_pos: usize,
-    pub end_pos: usize
+    pub end_pos: usize,
 }
 
 //> Implementations
@@ -32,7 +30,7 @@ impl Position {
             start_line: 0,
             end_line: 0,
             start_pos: 0,
-            end_pos: 0
+            end_pos: 0,
         }
     }
 }

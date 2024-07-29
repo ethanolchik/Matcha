@@ -1,0 +1,174 @@
+Some(
+    Module {
+        name: Identifier {
+            name: Identifier 'x' (at 1:9),
+        },
+        filename: "./test/src/x.mt",
+        statements: [
+            Statement {
+                kind: Struct(
+                    Struct {
+                        name: Expression {
+                            kind: Identifier(
+                                Identifier {
+                                    name: Identifier 'Test' (at 3:12),
+                                },
+                            ),
+                            pos: Position {
+                                start_line: 3,
+                                end_line: 3,
+                                start_pos: 12,
+                                end_pos: 12,
+                            },
+                        },
+                        fields: [
+                            Variable {
+                                name: Expression {
+                                    kind: Identifier(
+                                        Identifier {
+                                            name: Identifier 'x' (at 4:6),
+                                        },
+                                    ),
+                                    pos: Position {
+                                        start_line: 3,
+                                        end_line: 4,
+                                        start_pos: 14,
+                                        end_pos: 6,
+                                    },
+                                },
+                                value: None,
+                                type_: Type {
+                                    kind: Float32,
+                                    modifiers: Modifiers {
+                                        is_export: false,
+                                        is_pub: true,
+                                        is_extern: false,
+                                        is_static: false,
+                                        is_const: false,
+                                    },
+                                    pos: Position {
+                                        start_line: 4,
+                                        end_line: 4,
+                                        start_pos: 11,
+                                        end_pos: 19,
+                                    },
+                                },
+                                is_field: true,
+                                owner: Some(
+                                    "Test",
+                                ),
+                            },
+                        ],
+                        methods: [],
+                        type_: Type {
+                            kind: UserType(
+                                UserType {
+                                    name: "Test",
+                                    kind: Struct,
+                                },
+                            ),
+                            modifiers: Modifiers {
+                                is_export: false,
+                                is_pub: false,
+                                is_extern: false,
+                                is_static: false,
+                                is_const: false,
+                            },
+                            pos: Position {
+                                start_line: 3,
+                                end_line: 3,
+                                start_pos: 12,
+                                end_pos: 12,
+                            },
+                        },
+                    },
+                ),
+                pos: Position {
+                    start_line: 3,
+                    end_line: 5,
+                    start_pos: 12,
+                    end_pos: 2,
+                },
+            },
+            Statement {
+                kind: Variable(
+                    Variable {
+                        name: Expression {
+                            kind: Identifier(
+                                Identifier {
+                                    name: Identifier 'PI' (at 7:9),
+                                },
+                            ),
+                            pos: Position {
+                                start_line: 7,
+                                end_line: 7,
+                                start_pos: 9,
+                                end_pos: 9,
+                            },
+                        },
+                        value: Some(
+                            Expression {
+                                kind: Literal(
+                                    Literal {
+                                        value: Float '3.14' (at 7:25),
+                                    },
+                                ),
+                                pos: Position {
+                                    start_line: 7,
+                                    end_line: 7,
+                                    start_pos: 25,
+                                    end_pos: 25,
+                                },
+                            },
+                        ),
+                        type_: Type {
+                            kind: Float32,
+                            modifiers: Modifiers {
+                                is_export: false,
+                                is_pub: false,
+                                is_extern: false,
+                                is_static: false,
+                                is_const: true,
+                            },
+                            pos: Position {
+                                start_line: 7,
+                                end_line: 7,
+                                start_pos: 10,
+                                end_pos: 18,
+                            },
+                        },
+                        is_field: false,
+                        owner: None,
+                    },
+                ),
+                pos: Position {
+                    start_line: 7,
+                    end_line: 7,
+                    start_pos: 9,
+                    end_pos: 26,
+                },
+            },
+            Statement {
+                kind: Export(
+                    Export {
+                        statements: [
+                            Identifier {
+                                name: Identifier 'Test' (at 10:9),
+                            },
+                            Identifier {
+                                name: Identifier 'PI' (at 11:7),
+                            },
+                        ],
+                    },
+                ),
+                pos: Position {
+                    start_line: 9,
+                    end_line: 12,
+                    start_pos: 9,
+                    end_pos: 2,
+                },
+            },
+        ],
+        imports: [],
+    },
+)

@@ -3,21 +3,14 @@
 // This file contains the Lexer struct and its implementation. The Lexer struct is used to
 // convert a string of source code into a vector of tokens.
 
-
 //> Imports
 
-use codespan_reporting::diagnostic::Label;
-
 use crate::{
-    errors::errors::{
-        Diagnostic,
-        DiagnosticKind
-    },
-    frontend::lexer::token::{Token, TokenType}
+    errors::errors::{Diagnostic, DiagnosticKind},
+    frontend::lexer::token::{Token, TokenType},
 };
 
 //> Struct Definitions
-
 
 /// Lexer(source) struct
 /// [Debug, Clone]
@@ -32,7 +25,7 @@ pub struct Lexer {
     pub line: usize,
     pub pos: usize,
 
-    pub had_error: bool
+    pub had_error: bool,
 }
 
 //> Implementation
@@ -47,7 +40,7 @@ impl Lexer {
             line: 1,
             pos: 1,
 
-            had_error: false
+            had_error: false,
         }
     }
 
@@ -74,7 +67,7 @@ impl Lexer {
 
         match c {
             //> Whitespace
-            ' ' | '\r' | '\t' | '\n' => {},
+            ' ' | '\r' | '\t' | '\n' => {}
             //> Single Character Tokens
             '(' => self.add_token(TokenType::LeftParen),
             ')' => self.add_token(TokenType::RightParen),
@@ -225,7 +218,7 @@ impl Lexer {
                     format!("Unexpected character {:?}", c),
                     self.line,
                     self.pos,
-                    self.filename.clone()
+                    self.filename.clone(),
                 );
 
                 error.emit();
@@ -248,7 +241,11 @@ impl Lexer {
             }
         }
 
-        self.add_token(if is_float { TokenType::Float } else { TokenType::Integer });
+        self.add_token(if is_float {
+            TokenType::Float
+        } else {
+            TokenType::Integer
+        });
     }
 
     fn identifier(&mut self) {
@@ -280,7 +277,7 @@ impl Lexer {
             "extern" => TokenType::Extern,
             "static" => TokenType::Static,
             "const" => TokenType::Const,
-            _ => TokenType::Identifier
+            _ => TokenType::Identifier,
         };
 
         self.add_token(kind);
@@ -301,7 +298,7 @@ impl Lexer {
                 String::from("Unterminated string"),
                 self.line,
                 self.pos,
-                self.filename.clone()
+                self.filename.clone(),
             );
 
             error.emit();
@@ -357,7 +354,9 @@ impl Lexer {
                 self.advance();
                 self.advance();
                 nesting += 1;
-            } else if self.peek() == '*' && self.source.chars().nth(self.current + 1).unwrap() == '/' {
+            } else if self.peek() == '*'
+                && self.source.chars().nth(self.current + 1).unwrap() == '/'
+            {
                 self.advance();
                 self.advance();
                 nesting -= 1;
@@ -368,26 +367,18 @@ impl Lexer {
     }
 
     fn add_token(&mut self, kind: TokenType) {
-        self.tokens.push(
-            Token::new(
-                kind,
-                String::from(self.source[self.start..self.current].to_owned()),
-                self.line,
-                self.pos
-            )
-        );
+        self.tokens.push(Token::new(
+            kind,
+            String::from(self.source[self.start..self.current].to_owned()),
+            self.line,
+            self.pos,
+        ));
 
         self.start = self.current;
     }
     fn add_token_with_lexeme(&mut self, kind: TokenType, lexeme: String) {
-        self.tokens.push(
-            Token::new(
-                kind,
-                lexeme,
-                self.line,
-                self.pos
-            )
-        );
+        self.tokens
+            .push(Token::new(kind, lexeme, self.line, self.pos));
 
         self.start = self.current;
     }

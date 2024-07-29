@@ -45,7 +45,6 @@ pub trait Node: Any + dyn_clone::DynClone {
     fn as_any(&self) -> &dyn Any;
 }
 
-
 /// Visitor trait
 /// This trait is given to all AST visitors and it allows them to visit AST nodes.
 pub trait Visitor {
@@ -92,7 +91,7 @@ pub struct Module {
     pub filename: String,
     pub statements: Vec<Box<Statement>>,
 
-    pub imports: Vec<Import>
+    pub imports: Vec<Import>,
 }
 
 /// Statement struct<br>
@@ -101,7 +100,7 @@ pub struct Module {
 #[derive(Clone, Debug)]
 pub struct Statement {
     pub kind: StatementKind,
-    
+
     pub pos: Position,
 }
 
@@ -132,7 +131,7 @@ pub enum StatementKind {
 #[derive(Clone, Debug)]
 pub struct Expression {
     pub kind: ExpressionKind,
-    
+
     pub pos: Position,
 }
 
@@ -173,7 +172,7 @@ pub struct Variable {
     pub type_: Type,
 
     pub is_field: bool,
-    pub owner: Option<String>
+    pub owner: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -185,7 +184,7 @@ pub struct Function {
 
     pub is_method: bool,
     pub obj_name: Option<Expression>,
-    pub obj_ref_name: Option<Expression>
+    pub obj_ref_name: Option<Expression>,
 }
 
 #[derive(Clone, Debug)]
@@ -193,7 +192,7 @@ pub struct Struct {
     pub name: Expression,
     pub fields: Vec<Variable>,
     pub methods: Vec<Function>,
-    pub type_: Type
+    pub type_: Type,
 }
 
 #[derive(Clone, Debug)]
@@ -202,26 +201,26 @@ pub struct Enum {
     pub variants: Vec<Variable>,
 
     pub type_: Type,
-    pub methods: Vec<Function>
+    pub methods: Vec<Function>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Return {
     pub value: Option<Expression>,
-    pub pos: Position
+    pub pos: Position,
 }
 
 #[derive(Clone, Debug)]
 pub struct If {
     pub condition: Expression,
     pub then_branch: Box<Statement>,
-    pub else_branch: Option<Box<Statement>>
+    pub else_branch: Option<Box<Statement>>,
 }
 
 #[derive(Clone, Debug)]
 pub struct While {
     pub condition: Expression,
-    pub body: Box<Statement>
+    pub body: Box<Statement>,
 }
 
 #[derive(Clone, Debug)]
@@ -229,27 +228,27 @@ pub struct For {
     pub initializer: Option<Box<Statement>>,
     pub condition: Option<Expression>,
     pub increment: Option<Expression>,
-    pub body: Box<Statement>
+    pub body: Box<Statement>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Block {
-    pub statements: Vec<Box<Statement>>
+    pub statements: Vec<Box<Statement>>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Export {
-    pub statements: Vec<Box<Identifier>>
+    pub statements: Vec<Box<Identifier>>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Break {
-    pub pos: Position
+    pub pos: Position,
 }
 
 #[derive(Clone, Debug)]
 pub struct Continue {
-    pub pos: Position
+    pub pos: Position,
 }
 
 //> Expression Definitions:
@@ -266,46 +265,46 @@ pub struct Unary {
     pub operator: Token,
     pub right: Box<Expression>,
 
-    pub is_prefix: bool
+    pub is_prefix: bool,
 }
 
 #[derive(Clone, Debug)]
 pub struct Literal {
-    pub value: Token
+    pub value: Token,
 }
 
 #[derive(Clone, Debug)]
 pub struct Identifier {
-    pub name: Token
+    pub name: Token,
 }
 
 #[derive(Clone, Debug)]
 pub struct Call {
     pub callee: Box<Expression>,
-    pub args: Vec<Expression>
+    pub args: Vec<Expression>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Grouping {
-    pub expression: Box<Expression>
+    pub expression: Box<Expression>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Assignment {
     pub operator: Token,
     pub left: Box<Expression>,
-    pub right: Box<Expression>
+    pub right: Box<Expression>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Array {
-    pub elements: Vec<Expression>
+    pub elements: Vec<Expression>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Index {
     pub target: Box<Expression>,
-    pub index: Box<Expression>
+    pub index: Box<Expression>,
 }
 
 /// StructInit struct
@@ -315,27 +314,27 @@ pub struct Index {
 #[derive(Clone, Debug)]
 pub struct StructInit {
     pub name: Token,
-    pub fields: Vec<(Token, Expression)>
+    pub fields: Vec<(Token, Expression)>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Get {
     pub object: Box<Expression>,
-    pub name: Box<Expression>
+    pub name: Box<Expression>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Set {
     pub object: Box<Expression>,
     pub name: Box<Expression>,
-    pub value: Box<Expression>
+    pub value: Box<Expression>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Cast {
     pub operator: Token,
     pub value: Box<Expression>,
-    pub type_: Type
+    pub type_: Type,
 }
 
 //> Implementations
@@ -346,7 +345,10 @@ impl Node for Module {
     }
 
     fn get_children(&self) -> Vec<&dyn Node> {
-        self.statements.iter().map(|s| s.as_ref() as &dyn Node).collect()
+        self.statements
+            .iter()
+            .map(|s| s.as_ref() as &dyn Node)
+            .collect()
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -368,7 +370,7 @@ impl Node for Statement {
             StatementKind::Enum(enum_) => vec![enum_ as &dyn Node],
             StatementKind::Return(return_) => match &return_.value {
                 Some(expression) => vec![expression as &dyn Node],
-                None => vec![]
+                None => vec![],
             },
             StatementKind::Export(export) => vec![export as &dyn Node],
             StatementKind::Break(break_) => vec![break_ as &dyn Node],
@@ -379,7 +381,7 @@ impl Node for Statement {
             StatementKind::Block(block) => vec![block as &dyn Node],
         }
     }
-    
+
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -390,25 +392,25 @@ impl Statement {
         match &self.kind {
             StatementKind::Expression(expression) => match &expression.kind {
                 ExpressionKind::Identifier(identifier) => identifier.name.lexeme.clone(),
-                _ => String::new()
+                _ => String::new(),
             },
             StatementKind::Variable(variable) => match &variable.name.kind {
                 ExpressionKind::Identifier(identifier) => identifier.name.lexeme.clone(),
-                _ => String::new()
+                _ => String::new(),
             },
             StatementKind::Function(function) => match &function.name.kind {
                 ExpressionKind::Identifier(identifier) => identifier.name.lexeme.clone(),
-                _ => String::new()
+                _ => String::new(),
             },
             StatementKind::Struct(struct_) => match &struct_.name.kind {
                 ExpressionKind::Identifier(identifier) => identifier.name.lexeme.clone(),
-                _ => String::new()
+                _ => String::new(),
             },
             StatementKind::Enum(enum_) => match &enum_.name.kind {
                 ExpressionKind::Identifier(identifier) => identifier.name.lexeme.clone(),
-                _ => String::new()
+                _ => String::new(),
             },
-            _ => String::new()
+            _ => String::new(),
         }
     }
 }
@@ -464,7 +466,7 @@ impl Node for Variable {
     fn get_children(&self) -> Vec<&dyn Node> {
         match &self.value {
             Some(expression) => vec![&self.name, expression],
-            None => vec![&self.name]
+            None => vec![&self.name],
         }
     }
 
@@ -486,6 +488,21 @@ impl Node for Function {
         self
     }
 }
+
+// impl PartialEq for Function {
+//     fn eq(&self, other: &Self) -> bool {
+//         self.name == other.name
+//     }
+// }
+
+// impl PartialEq for Expression {
+//     fn eq(&self, other: &Self) -> bool {
+//         match (&self.kind, &other.kind) {
+//             (ExpressionKind::Identifier(id1), ExpressionKind::Identifier(id2)) => id1 == id2,
+//             _ => false
+//         }
+//     }
+// }
 
 impl Node for Struct {
     fn accept(&self, visitor: &mut dyn Visitor) -> TypeOption {
@@ -523,7 +540,7 @@ impl Node for Return {
     fn get_children(&self) -> Vec<&dyn Node> {
         match &self.value {
             Some(expression) => vec![expression],
-            None => vec![]
+            None => vec![],
         }
     }
 
@@ -540,7 +557,7 @@ impl Node for If {
     fn get_children(&self) -> Vec<&dyn Node> {
         match &self.else_branch {
             Some(else_branch) => vec![&self.condition, &self.then_branch, else_branch],
-            None => vec![&self.condition, &self.then_branch]
+            None => vec![&self.condition, &self.then_branch],
         }
     }
 
@@ -571,7 +588,7 @@ impl Node for For {
     fn get_children(&self) -> Vec<&dyn Node> {
         match &self.initializer {
             Some(initializer) => vec![initializer, &self.body],
-            None => vec![&self.body]
+            None => vec![&self.body],
         }
     }
 
@@ -586,7 +603,10 @@ impl Node for Block {
     }
 
     fn get_children(&self) -> Vec<&dyn Node> {
-        self.statements.iter().map(|s| s.as_ref() as &dyn Node).collect()
+        self.statements
+            .iter()
+            .map(|s| s.as_ref() as &dyn Node)
+            .collect()
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -600,7 +620,10 @@ impl Node for Export {
     }
 
     fn get_children(&self) -> Vec<&dyn Node> {
-        self.statements.iter().map(|s| s.as_ref() as &dyn Node).collect()
+        self.statements
+            .iter()
+            .map(|s| s.as_ref() as &dyn Node)
+            .collect()
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -692,6 +715,12 @@ impl Node for Identifier {
     }
 }
 
+impl PartialEq for Identifier {
+    fn eq(&self, other: &Self) -> bool {
+        self.name.lexeme == other.name.lexeme
+    }
+}
+
 impl Node for Call {
     fn accept(&self, visitor: &mut dyn Visitor) -> TypeOption {
         visitor.visit_call(self)
@@ -700,7 +729,7 @@ impl Node for Call {
     fn get_children(&self) -> Vec<&dyn Node> {
         vec![&self.callee]
     }
-    
+
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -768,7 +797,10 @@ impl Node for StructInit {
     }
 
     fn get_children(&self) -> Vec<&dyn Node> {
-        self.fields.iter().map(|(_name, expression)| expression as &dyn Node).collect()
+        self.fields
+            .iter()
+            .map(|(_name, expression)| expression as &dyn Node)
+            .collect()
     }
 
     fn as_any(&self) -> &dyn Any {

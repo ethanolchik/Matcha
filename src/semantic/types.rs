@@ -8,15 +8,13 @@ use crate::{frontend::lexer::token::TokenType, utils::Position};
 
 //> Definitions
 
-
 /// TypeKindOrNone enum<br>
 /// All visitor functions return a TypeKindOrNone, which can either be a TypeKind or None.
 pub enum TypeOption {
     TypeKind(TypeKind),
     Type(Type),
-    None
+    None,
 }
-
 
 /// Types enum<br>
 /// This enum represents the different types in Matcha.<br>
@@ -36,7 +34,7 @@ pub enum TypeKind {
     UserType(UserType),
 
     Object,
-    Error
+    Error,
 }
 
 /// Type(kind, modifiers) struct<br>
@@ -67,7 +65,7 @@ pub enum UserTypeKind {
     Struct,
     Enum,
 
-    Unknown // assigned during parsing, resolved during semantic analysis
+    Unknown, // assigned during parsing, resolved during semantic analysis
 }
 
 /// Modifiers(is_pub?, is_extern?, is_static?, is_const?) struct<br>
@@ -79,7 +77,7 @@ pub struct Modifiers {
     pub is_pub: bool,
     pub is_extern: bool,
     pub is_static: bool,
-    pub is_const: bool
+    pub is_const: bool,
 }
 
 //> Implementations
@@ -89,7 +87,7 @@ impl TypeOption {
         match self {
             TypeOption::TypeKind(t) => t,
             TypeOption::Type(t) => t.kind,
-            TypeOption::None => panic!("TypeOption::None cannot be unwrapped")
+            TypeOption::None => panic!("TypeOption::None cannot be unwrapped"),
         }
     }
 
@@ -106,7 +104,7 @@ impl TypeOption {
         match self {
             TypeOption::TypeKind(t) => TypeOption::TypeKind(t.clone()),
             TypeOption::Type(t) => TypeOption::Type(t.clone()),
-            TypeOption::None => TypeOption::None
+            TypeOption::None => TypeOption::None,
         }
     }
 }
@@ -122,59 +120,58 @@ impl PartialEq for TypeKind {
         match self {
             TypeKind::Int32 => match other {
                 TypeKind::Int32 => true,
-                _ => false
+                _ => false,
             },
             TypeKind::Int64 => match other {
                 TypeKind::Int64 => true,
-                _ => false
+                _ => false,
             },
             TypeKind::Float32 => match other {
                 TypeKind::Float32 => true,
-                _ => false
+                _ => false,
             },
             TypeKind::Float64 => match other {
                 TypeKind::Float64 => true,
-                _ => false
+                _ => false,
             },
             TypeKind::Bool => match other {
                 TypeKind::Bool => true,
-                _ => false
+                _ => false,
             },
             TypeKind::String => match other {
                 TypeKind::String => true,
-                _ => false
+                _ => false,
             },
             TypeKind::Void => match other {
                 TypeKind::Void => true,
-                _ => false
+                _ => false,
             },
             TypeKind::Struct => match other {
                 TypeKind::Struct => true,
-                _ => false
+                _ => false,
             },
             TypeKind::Enum => match other {
                 TypeKind::Enum => true,
-                _ => false
+                _ => false,
             },
             TypeKind::Array(t) => match other {
                 TypeKind::Array(o) => t == o,
-                _ => false
+                _ => false,
             },
             TypeKind::UserType(t) => match other {
                 TypeKind::UserType(o) => t == o,
-                _ => false
+                _ => false,
             },
             TypeKind::Object => match other {
                 TypeKind::Object => true,
-                _ => false
+                _ => false,
             },
             TypeKind::Error => match other {
                 TypeKind::Error => true,
-                _ => false
-            }
+                _ => false,
+            },
         }
     }
-
 }
 
 impl PartialEq for UserType {
@@ -188,13 +185,13 @@ impl PartialEq for UserTypeKind {
         match self {
             UserTypeKind::Struct => match other {
                 UserTypeKind::Struct => true,
-                _ => false
+                _ => false,
             },
             UserTypeKind::Enum => match other {
                 UserTypeKind::Enum => true,
-                _ => false
+                _ => false,
             },
-            UserTypeKind::Unknown => true
+            UserTypeKind::Unknown => true,
         }
     }
 }
@@ -204,63 +201,81 @@ impl Type {
         Self {
             kind,
             modifiers,
-            pos
+            pos,
         }
     }
 
     pub fn is_primitive(&self) -> bool {
         match self.kind {
-            TypeKind::Int32 | TypeKind::Int64 | TypeKind::Float32 | TypeKind::Float64 | TypeKind::Bool | TypeKind::String | TypeKind::Void => true,
-            _ => false
+            TypeKind::Int32
+            | TypeKind::Int64
+            | TypeKind::Float32
+            | TypeKind::Float64
+            | TypeKind::Bool
+            | TypeKind::String
+            | TypeKind::Void => true,
+            _ => false,
         }
     }
 
     pub fn is_primitive_from_kind(kind: TypeKind) -> bool {
         match kind {
-            TypeKind::Int32 | TypeKind::Int64 | TypeKind::Float32 | TypeKind::Float64 | TypeKind::Bool | TypeKind::String | TypeKind::Void => true,
-            _ => false
+            TypeKind::Int32
+            | TypeKind::Int64
+            | TypeKind::Float32
+            | TypeKind::Float64
+            | TypeKind::Bool
+            | TypeKind::String
+            | TypeKind::Void => true,
+            _ => false,
         }
     }
 
     pub fn is_primitive_from_string(name: String) -> bool {
         match name.as_str() {
             "Int32" | "Int64" | "Float32" | "Float64" | "Bool" | "String" | "Void" => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_user_defined(&self) -> bool {
         match self.kind {
             TypeKind::UserType(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_struct(&self) -> bool {
         match self.kind {
-            TypeKind::UserType(UserType { kind: UserTypeKind::Struct, .. }) => true,
-            _ => false
+            TypeKind::UserType(UserType {
+                kind: UserTypeKind::Struct,
+                ..
+            }) => true,
+            _ => false,
         }
     }
 
     pub fn is_enum(&self) -> bool {
         match self.kind {
-            TypeKind::UserType(UserType { kind: UserTypeKind::Enum, .. }) => true,
-            _ => false
+            TypeKind::UserType(UserType {
+                kind: UserTypeKind::Enum,
+                ..
+            }) => true,
+            _ => false,
         }
     }
 
     pub fn is_array(&self) -> bool {
         match self.kind {
             TypeKind::Array(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn get_array_type(&self) -> Option<&Type> {
         match &self.kind {
             TypeKind::Array(t) => Some(t),
-            _ => None
+            _ => None,
         }
     }
 
@@ -278,7 +293,7 @@ impl Type {
             TypeKind::Array(t) => format!("[{}]", t.to_string()),
             TypeKind::UserType(t) => String::from(t.to_string()),
             TypeKind::Object => String::from("Object"),
-            TypeKind::Error => String::from("!Error")
+            TypeKind::Error => String::from("!Error"),
         }
     }
 
@@ -291,7 +306,7 @@ impl Type {
             "Bool" => TypeKind::Bool,
             "String" => TypeKind::String,
             "Void" => TypeKind::Void,
-            _ => return TypeKind::UserType(UserType::new(String::from(s), UserTypeKind::Unknown))
+            _ => return TypeKind::UserType(UserType::new(String::from(s), UserTypeKind::Unknown)),
         }
     }
 
@@ -305,8 +320,8 @@ impl Type {
                     start_line: t.pos.start_line,
                     start_pos: t.pos.start_pos,
                     end_line: t.pos.end_line,
-                    end_pos: t.pos.end_pos
-                }
+                    end_pos: t.pos.end_pos,
+                },
             );
         }
 
@@ -319,17 +334,31 @@ impl Type {
                     start_line: array_type.pos.start_line,
                     start_pos: array_type.pos.start_pos,
                     end_line: array_type.pos.end_line,
-                    end_pos: array_type.pos.end_pos
-                }
+                    end_pos: array_type.pos.end_pos,
+                },
             );
         }
 
         array_type
     }
+
+    pub fn contains_name(&self, _name: String) -> bool {
+        match &self.kind {
+            TypeKind::UserType(_) => false,
+            _ => true, // TODO
+        }
+    }
+
+    pub fn get_name(&self, _name: String) -> super::SymbolKind {
+        match &self.kind {
+            TypeKind::UserType(_) => panic!("Get name called on a usertype"),
+            _ => todo!(), // TODO
+        }
+    }
 }
 
 impl TypeKind {
-    pub fn to_string(&self) -> String  {
+    pub fn to_string(&self) -> String {
         match self {
             TypeKind::Int32 => String::from("Int32"),
             TypeKind::Int64 => String::from("Int64"),
@@ -343,14 +372,14 @@ impl TypeKind {
             TypeKind::Array(t) => format!("[{}]", t.to_string()),
             TypeKind::UserType(t) => String::from(t.to_string()),
             TypeKind::Object => String::from("Object"),
-            TypeKind::Error => String::from("!Error")
+            TypeKind::Error => String::from("!Error"),
         }
     }
 
     pub fn is_numeric(&self) -> bool {
         match self {
             TypeKind::Int32 | TypeKind::Int64 | TypeKind::Float32 | TypeKind::Float64 => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -364,7 +393,7 @@ impl TypeKind {
             (TypeKind::Int32, TypeKind::Float32) => right,
             (TypeKind::Float32, TypeKind::Int64) => TypeKind::Float64,
             (TypeKind::Int64, TypeKind::Float32) => TypeKind::Float64,
-            _ => self.clone()
+            _ => self.clone(),
         }
     }
 
@@ -384,30 +413,32 @@ impl TypeKind {
 
 impl UserType {
     pub fn new(name: String, kind: UserTypeKind) -> Self {
-        Self {
-            name,
-            kind
-        }
+        Self { name, kind }
     }
 
     pub fn to_string(&self) -> String {
         match self.kind {
             UserTypeKind::Struct => format!("Struct {}", self.name),
             UserTypeKind::Enum => format!("Enum {}", self.name),
-            UserTypeKind::Unknown => format!("Unknown {}", self.name)
+            UserTypeKind::Unknown => format!("Unknown {}", self.name),
         }
     }
 }
 
-
 impl Modifiers {
-    pub fn new(is_export: bool, is_pub: bool, is_extern: bool, is_static: bool, is_const: bool) -> Self {
+    pub fn new(
+        is_export: bool,
+        is_pub: bool,
+        is_extern: bool,
+        is_static: bool,
+        is_const: bool,
+    ) -> Self {
         Self {
             is_export,
             is_pub,
             is_extern,
             is_static,
-            is_const
+            is_const,
         }
     }
 

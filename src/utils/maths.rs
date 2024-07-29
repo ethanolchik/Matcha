@@ -14,7 +14,12 @@ pub fn jaro_distance(s: String, s2: String) -> f32 {
         return 0.0;
     }
 
-    let match_distance = (std::cmp::max(len1, len2) / 2) - 1;
+    let match_distance: usize;
+    if len1 == len2 && len2 == 1 {
+        match_distance = 0;
+    } else {
+        match_distance = (std::cmp::max(len1, len2) / 2) - 1;
+    }
 
     let mut s_matches = vec![false; len1];
     let mut t_matches = vec![false; len2];

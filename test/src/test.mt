@@ -9,11 +9,15 @@ enum Colour {
     RED, GREEN, BLUE
 }
 
-func new_dog(name: String, colour: Colour): Dog {
+func (Dog) new(name: String, colour: Colour): Dog {
     return Dog {
         name: name,
         colour: colour
     };
+}
+
+func (c: Colour) new(): Colour {
+    return c;
 }
 
 func (d: Dog) bark(): pub String {
@@ -21,7 +25,9 @@ func (d: Dog) bark(): pub String {
 }
 
 func main(): Void {
-    var myDog: Dog = new_dog("Foo", Colour.RED);
+    var myDog: Dog = Dog.new("Foo", Colour.RED);
+
+    var myColour: Colour = Colour.new();
 
     myDog.bark();
 }
@@ -29,8 +35,6 @@ func main(): Void {
 export {
     Dog,
     Colour,
-    
-    new_dog,
 
     main
 }

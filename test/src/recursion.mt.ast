@@ -1,0 +1,397 @@
+Some(
+    Module {
+        name: Identifier {
+            name: Identifier 'recursion' (at 1:17),
+        },
+        filename: "./test/src/recursion.mt",
+        statements: [
+            Statement {
+                kind: Function(
+                    Function {
+                        name: Expression {
+                            kind: Identifier(
+                                Identifier {
+                                    name: Identifier 'fib' (at 3:9),
+                                },
+                            ),
+                            pos: Position {
+                                start_line: 3,
+                                end_line: 3,
+                                start_pos: 9,
+                                end_pos: 9,
+                            },
+                        },
+                        parameters: [
+                            Variable {
+                                name: Expression {
+                                    kind: Identifier(
+                                        Identifier {
+                                            name: Identifier 'n' (at 3:11),
+                                        },
+                                    ),
+                                    pos: Position {
+                                        start_line: 3,
+                                        end_line: 3,
+                                        start_pos: 11,
+                                        end_pos: 11,
+                                    },
+                                },
+                                value: None,
+                                type_: Type {
+                                    kind: Int32,
+                                    modifiers: Modifiers {
+                                        is_export: false,
+                                        is_pub: false,
+                                        is_extern: false,
+                                        is_static: false,
+                                        is_const: false,
+                                    },
+                                    pos: Position {
+                                        start_line: 3,
+                                        end_line: 3,
+                                        start_pos: 12,
+                                        end_pos: 18,
+                                    },
+                                },
+                                is_field: false,
+                                owner: None,
+                            },
+                        ],
+                        type_: Type {
+                            kind: Int32,
+                            modifiers: Modifiers {
+                                is_export: false,
+                                is_pub: false,
+                                is_extern: false,
+                                is_static: false,
+                                is_const: false,
+                            },
+                            pos: Position {
+                                start_line: 3,
+                                end_line: 3,
+                                start_pos: 20,
+                                end_pos: 26,
+                            },
+                        },
+                        body: Statement {
+                            kind: Block(
+                                Block {
+                                    statements: [
+                                        Statement {
+                                            kind: If(
+                                                If {
+                                                    condition: Expression {
+                                                        kind: Binary(
+                                                            Binary {
+                                                                left: Expression {
+                                                                    kind: Identifier(
+                                                                        Identifier {
+                                                                            name: Identifier 'n' (at 4:10),
+                                                                        },
+                                                                    ),
+                                                                    pos: Position {
+                                                                        start_line: 4,
+                                                                        end_line: 4,
+                                                                        start_pos: 10,
+                                                                        end_pos: 10,
+                                                                    },
+                                                                },
+                                                                operator: LessEquals '<' (at 4:12),
+                                                                right: Expression {
+                                                                    kind: Literal(
+                                                                        Literal {
+                                                                            value: Integer '1' (at 4:15),
+                                                                        },
+                                                                    ),
+                                                                    pos: Position {
+                                                                        start_line: 4,
+                                                                        end_line: 4,
+                                                                        start_pos: 15,
+                                                                        end_pos: 15,
+                                                                    },
+                                                                },
+                                                            },
+                                                        ),
+                                                        pos: Position {
+                                                            start_line: 4,
+                                                            end_line: 4,
+                                                            start_pos: 10,
+                                                            end_pos: 10,
+                                                        },
+                                                    },
+                                                    then_branch: Statement {
+                                                        kind: Block(
+                                                            Block {
+                                                                statements: [
+                                                                    Statement {
+                                                                        kind: Return(
+                                                                            Return {
+                                                                                value: Some(
+                                                                                    Expression {
+                                                                                        kind: Identifier(
+                                                                                            Identifier {
+                                                                                                name: Identifier 'n' (at 5:17),
+                                                                                            },
+                                                                                        ),
+                                                                                        pos: Position {
+                                                                                            start_line: 5,
+                                                                                            end_line: 5,
+                                                                                            start_pos: 17,
+                                                                                            end_pos: 17,
+                                                                                        },
+                                                                                    },
+                                                                                ),
+                                                                                pos: Position {
+                                                                                    start_line: 5,
+                                                                                    end_line: 5,
+                                                                                    start_pos: 17,
+                                                                                    end_pos: 18,
+                                                                                },
+                                                                            },
+                                                                        ),
+                                                                        pos: Position {
+                                                                            start_line: 5,
+                                                                            end_line: 5,
+                                                                            start_pos: 17,
+                                                                            end_pos: 18,
+                                                                        },
+                                                                    },
+                                                                ],
+                                                            },
+                                                        ),
+                                                        pos: Position {
+                                                            start_line: 5,
+                                                            end_line: 6,
+                                                            start_pos: 15,
+                                                            end_pos: 6,
+                                                        },
+                                                    },
+                                                    else_branch: None,
+                                                },
+                                            ),
+                                            pos: Position {
+                                                start_line: 4,
+                                                end_line: 6,
+                                                start_pos: 9,
+                                                end_pos: 6,
+                                            },
+                                        },
+                                        Statement {
+                                            kind: Return(
+                                                Return {
+                                                    value: Some(
+                                                        Expression {
+                                                            kind: Binary(
+                                                                Binary {
+                                                                    left: Expression {
+                                                                        kind: Call(
+                                                                            Call {
+                                                                                callee: Expression {
+                                                                                    kind: Identifier(
+                                                                                        Identifier {
+                                                                                            name: Identifier 'fib' (at 7:15),
+                                                                                        },
+                                                                                    ),
+                                                                                    pos: Position {
+                                                                                        start_line: 7,
+                                                                                        end_line: 7,
+                                                                                        start_pos: 15,
+                                                                                        end_pos: 15,
+                                                                                    },
+                                                                                },
+                                                                                args: [
+                                                                                    Expression {
+                                                                                        kind: Binary(
+                                                                                            Binary {
+                                                                                                left: Expression {
+                                                                                                    kind: Identifier(
+                                                                                                        Identifier {
+                                                                                                            name: Identifier 'n' (at 7:17),
+                                                                                                        },
+                                                                                                    ),
+                                                                                                    pos: Position {
+                                                                                                        start_line: 7,
+                                                                                                        end_line: 7,
+                                                                                                        start_pos: 17,
+                                                                                                        end_pos: 17,
+                                                                                                    },
+                                                                                                },
+                                                                                                operator: Minus '-' (at 7:19),
+                                                                                                right: Expression {
+                                                                                                    kind: Literal(
+                                                                                                        Literal {
+                                                                                                            value: Integer '1' (at 7:21),
+                                                                                                        },
+                                                                                                    ),
+                                                                                                    pos: Position {
+                                                                                                        start_line: 7,
+                                                                                                        end_line: 7,
+                                                                                                        start_pos: 21,
+                                                                                                        end_pos: 21,
+                                                                                                    },
+                                                                                                },
+                                                                                            },
+                                                                                        ),
+                                                                                        pos: Position {
+                                                                                            start_line: 7,
+                                                                                            end_line: 7,
+                                                                                            start_pos: 17,
+                                                                                            end_pos: 17,
+                                                                                        },
+                                                                                    },
+                                                                                ],
+                                                                            },
+                                                                        ),
+                                                                        pos: Position {
+                                                                            start_line: 7,
+                                                                            end_line: 7,
+                                                                            start_pos: 15,
+                                                                            end_pos: 22,
+                                                                        },
+                                                                    },
+                                                                    operator: Plus '+' (at 7:24),
+                                                                    right: Expression {
+                                                                        kind: Call(
+                                                                            Call {
+                                                                                callee: Expression {
+                                                                                    kind: Identifier(
+                                                                                        Identifier {
+                                                                                            name: Identifier 'fib' (at 7:28),
+                                                                                        },
+                                                                                    ),
+                                                                                    pos: Position {
+                                                                                        start_line: 7,
+                                                                                        end_line: 7,
+                                                                                        start_pos: 28,
+                                                                                        end_pos: 28,
+                                                                                    },
+                                                                                },
+                                                                                args: [
+                                                                                    Expression {
+                                                                                        kind: Binary(
+                                                                                            Binary {
+                                                                                                left: Expression {
+                                                                                                    kind: Identifier(
+                                                                                                        Identifier {
+                                                                                                            name: Identifier 'n' (at 7:30),
+                                                                                                        },
+                                                                                                    ),
+                                                                                                    pos: Position {
+                                                                                                        start_line: 7,
+                                                                                                        end_line: 7,
+                                                                                                        start_pos: 30,
+                                                                                                        end_pos: 30,
+                                                                                                    },
+                                                                                                },
+                                                                                                operator: Minus '-' (at 7:32),
+                                                                                                right: Expression {
+                                                                                                    kind: Literal(
+                                                                                                        Literal {
+                                                                                                            value: Integer '2' (at 7:34),
+                                                                                                        },
+                                                                                                    ),
+                                                                                                    pos: Position {
+                                                                                                        start_line: 7,
+                                                                                                        end_line: 7,
+                                                                                                        start_pos: 34,
+                                                                                                        end_pos: 34,
+                                                                                                    },
+                                                                                                },
+                                                                                            },
+                                                                                        ),
+                                                                                        pos: Position {
+                                                                                            start_line: 7,
+                                                                                            end_line: 7,
+                                                                                            start_pos: 30,
+                                                                                            end_pos: 30,
+                                                                                        },
+                                                                                    },
+                                                                                ],
+                                                                            },
+                                                                        ),
+                                                                        pos: Position {
+                                                                            start_line: 7,
+                                                                            end_line: 7,
+                                                                            start_pos: 28,
+                                                                            end_pos: 35,
+                                                                        },
+                                                                    },
+                                                                },
+                                                            ),
+                                                            pos: Position {
+                                                                start_line: 7,
+                                                                end_line: 7,
+                                                                start_pos: 15,
+                                                                end_pos: 22,
+                                                            },
+                                                        },
+                                                    ),
+                                                    pos: Position {
+                                                        start_line: 7,
+                                                        end_line: 7,
+                                                        start_pos: 15,
+                                                        end_pos: 36,
+                                                    },
+                                                },
+                                            ),
+                                            pos: Position {
+                                                start_line: 7,
+                                                end_line: 7,
+                                                start_pos: 15,
+                                                end_pos: 36,
+                                            },
+                                        },
+                                    ],
+                                },
+                            ),
+                            pos: Position {
+                                start_line: 4,
+                                end_line: 8,
+                                start_pos: 7,
+                                end_pos: 2,
+                            },
+                        },
+                        is_method: false,
+                        obj_name: Some(
+                            Expression {
+                                kind: Identifier(
+                                    Identifier {
+                                        name: Identifier '' (at 0:0),
+                                    },
+                                ),
+                                pos: Position {
+                                    start_line: 3,
+                                    end_line: 0,
+                                    start_pos: 9,
+                                    end_pos: 0,
+                                },
+                            },
+                        ),
+                        obj_ref_name: Some(
+                            Expression {
+                                kind: Identifier(
+                                    Identifier {
+                                        name: Identifier '' (at 0:0),
+                                    },
+                                ),
+                                pos: Position {
+                                    start_line: 3,
+                                    end_line: 0,
+                                    start_pos: 0,
+                                    end_pos: 0,
+                                },
+                            },
+                        ),
+                    },
+                ),
+                pos: Position {
+                    start_line: 3,
+                    end_line: 8,
+                    start_pos: 9,
+                    end_pos: 2,
+                },
+            },
+        ],
+        imports: [],
+    },
+)
