@@ -146,8 +146,9 @@ impl Environment {
     }
 
     pub fn add_type(&mut self, type_: Type) {
+        let x = Symbol::new(&mut self.sid, SymbolKind::Type(type_));
         self.types
-            .push(Symbol::new(&mut self.sid, SymbolKind::Type(type_)));
+            .push(x.clone());
     }
 
     pub fn add_function(&mut self, function: Function) {
@@ -770,6 +771,7 @@ impl Environment {
         if self.parent.is_some() {
             return self.parent.as_ref().unwrap().get_type_by_name(name);
         }
+
         None
     }
 
@@ -945,6 +947,18 @@ impl SymbolTable {
             decl_queue: vec![],
             filename,
             exported: vec![],
+        }
+    }
+
+    pub fn add_built_in_types(&mut self) {
+        let mut env = self.current_mut();
+        let names = vec![
+            "Int32", "Int64", "Float32", "Float64", "Bool", "String", "Char", "Void",
+        ];
+
+        for n in names {
+            let type_ = Type::new(Type::from_string(n), types::Modifiers::new(false, false, false, false, true), Position::empty());
+            env.add_type(type_);
         }
     }
 
@@ -1377,12 +1391,6 @@ impl Clone for SymbolIdGen {
     fn clone(&self) -> Self {
         Self { cur: self.cur }
     }
-}
-
-struct GetNameInfo {
-    name: String,
-    is_call: bool,
-    pos: Position,
 }
 
 // TODO: Implement typechecker

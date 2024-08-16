@@ -89,6 +89,7 @@ impl ImportHandler {
             dependencies: Vec::new(),
             path: path.clone().0,
             exported_symbols: Vec::new(),
+            all_symbols: Vec::new(),
         };
 
         // Now we need to parse the file and get the exported symbols
@@ -279,7 +280,55 @@ impl ImportHandler {
                         // if it doesn't, use the directory
                         let last = sections.last().unwrap();
                         if fs::metadata(&format!("{}/{}{}", path, last, MATCHA_EXT)).is_ok() {
-                            path = format!("{}/{}{}", path, last, MATCHA_EXT);
+                            // check if the directory std/hello has only one file. if it does then use it. if not, check the files for the module name "hello". if it exists, then use the directory.
+
+                            let files = fs::read_dir(&path).unwrap();
+
+                            let mut count = 0;
+
+                            for file in files {
+                                let file = file.unwrap();
+                                // open up the file
+                                let contents = fs::read_to_string(file.path()).unwrap();
+
+                                let mut in_multiline: Vec<i32> = vec![];
+                                for line in contents.lines() {
+                                    if line.starts_with("//") {
+                                        continue;
+                                    }
+
+                                    if line.starts_with("/*") {
+                                        in_multiline.push(1);
+                                    }
+
+                                    if in_multiline.len() > 0 {
+                                        if line.ends_with("*/") {
+                                            in_multiline.pop();
+                                        }
+                                    }
+
+                                    if in_multiline.len() == 0 {
+                                        if line.contains("module") {
+                                            let s = line.split(" ").collect::<Vec<&str>>();
+
+                                            if s[1].strip_suffix(";").unwrap() == *last {
+                                                count += 1;
+                                                continue;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if count > 1 {
+                                    break;
+                                }
+                            }
+
+                            if count < 2 {
+                                path = format!("{}/{}{}", path, last, MATCHA_EXT);
+                            } else {
+                                return (path, true);
+                            }
                         } else {
                             return (path, true);
                         }
@@ -370,7 +419,7 @@ impl ImportHandler {
 
     fn get_stdlib_path(&self) -> String {
         // TODO: Generalise this.
-        return String::from("C:/Users/OLCHIK/Matcha/std");
+        return String::from("/home/ethan/Matcha/std");
     }
 }
 

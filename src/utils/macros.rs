@@ -16,6 +16,7 @@ macro_rules! set_flag_str {
             match $str {
                 "debug" => FLAGS.0 |= FLAG_DEBUG,
                 "no colour" => FLAGS.0 |= FLAG_NO_COLOR,
+                "ast" => FLAGS.0 |= FLAG_AST,
                 _ => panic!("Invalid flag: {}", $str),
             }
         }
@@ -40,6 +41,7 @@ macro_rules! is_flag_set_str {
             match $str {
                 "debug" => FLAGS.0 & FLAG_DEBUG == FLAG_DEBUG,
                 "no colour" => FLAGS.0 & FLAG_NO_COLOR == FLAG_NO_COLOR,
+                "ast" => FLAGS.0 & FLAG_AST == FLAG_AST,
                 _ => panic!("Invalid flag: {}", $str),
             }
         }

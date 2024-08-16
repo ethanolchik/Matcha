@@ -422,8 +422,8 @@ impl Parser {
             if self.match_token(vec![
                 TokenType::Pub,
                 TokenType::Extern,
-                TokenType::Static,
                 TokenType::Const,
+                TokenType::Builtin,
             ]) {
                 if can_have_modifiers {
                     modifiers.from_tokentype(self.previous().kind);
@@ -768,7 +768,7 @@ impl Parser {
                         kind: UserTypeKind::Enum,
                         name: enum_.clone(),
                     }),
-                    Modifiers::new(false, true, false, true, false),
+                    Modifiers::new(true, false, true, true, false),
                     Position {
                         start_line: start.line,
                         end_line: name.line,
@@ -1070,15 +1070,6 @@ impl Parser {
             } else {
                 initializer = Some(Box::new(self.expression_statement()));
             }
-
-            self.expect(
-                TokenType::Semicolon,
-                format!(
-                    "Expected ';' after for-statement initializer, got {:?}",
-                    self.peek()
-                )
-                .to_string(),
-            );
         }
 
         if !self.match_token(vec![TokenType::Semicolon]) {
@@ -1388,7 +1379,7 @@ impl Parser {
     fn factor(&mut self) -> Expression {
         let mut expression = self.exponent();
 
-        while self.match_token(vec![TokenType::Star, TokenType::Slash]) {
+        while self.match_token(vec![TokenType::Star, TokenType::Slash, TokenType::Percent]) {
             let operator = self.previous();
             let right = self.exponent();
 
@@ -1909,6 +1900,7 @@ impl Parser {
             TokenType::Integer,
             TokenType::Float,
             TokenType::String,
+            TokenType::Char,
             TokenType::True,
             TokenType::False,
             TokenType::Null,

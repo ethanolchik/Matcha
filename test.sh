@@ -1,1 +1,1 @@
-cargo run ./test/src/test_get.mt
+cargo run ./test/tmp/tmp.mt

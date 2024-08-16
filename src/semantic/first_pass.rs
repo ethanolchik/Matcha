@@ -24,6 +24,7 @@ impl FirstPassResolver {
     }
 
     pub fn resolve(&mut self, program: &Module) {
+        self.symtable.add_built_in_types();
         program.accept(self);
 
         self.symtable.sort_queue();

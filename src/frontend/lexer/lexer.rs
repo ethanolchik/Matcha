@@ -275,8 +275,8 @@ impl Lexer {
             "module" => TokenType::Module,
             "as" => TokenType::As,
             "extern" => TokenType::Extern,
-            "static" => TokenType::Static,
             "const" => TokenType::Const,
+            "builtin" => TokenType::Builtin,
             _ => TokenType::Identifier,
         };
 
@@ -284,32 +284,58 @@ impl Lexer {
     }
 
     fn string(&mut self, quote: char) {
-        while self.peek() != quote && !self.is_at_end() {
-            if self.peek() == '\n' {
-                self.line += 1;
-                self.pos = 1;
+        if quote == '\'' {
+            // char
+            if self.peek() == '\\' {
+                self.advance();
             }
             self.advance();
+            if self.peek() != quote {
+                let error = Diagnostic::new(
+                    DiagnosticKind::Error,
+                    String::from("Unterminated character"),
+                    self.line,
+                    self.pos,
+                    self.filename.clone(),
+                );
+
+                error.emit();
+                self.had_error = true;
+                return;
+            }
+
+            self.advance();
+
+            let value = (&self.source[self.start + 1..self.current - 1]).to_owned();
+            self.add_token_with_lexeme(TokenType::Char, value);
+        } else {
+            while self.peek() != quote && !self.is_at_end() {
+                if self.peek() == '\n' {
+                    self.line += 1;
+                    self.pos = 1;
+                }
+                self.advance();
+            }
+    
+            if self.is_at_end() {
+                let error = Diagnostic::new(
+                    DiagnosticKind::Error,
+                    String::from("Unterminated string"),
+                    self.line,
+                    self.pos,
+                    self.filename.clone(),
+                );
+    
+                error.emit();
+                self.had_error = true;
+                return;
+            }
+    
+            self.advance();
+    
+            let value = (&self.source[self.start + 1..self.current - 1]).to_owned();
+            self.add_token_with_lexeme(TokenType::String, value);
         }
-
-        if self.is_at_end() {
-            let error = Diagnostic::new(
-                DiagnosticKind::Error,
-                String::from("Unterminated string"),
-                self.line,
-                self.pos,
-                self.filename.clone(),
-            );
-
-            error.emit();
-            self.had_error = true;
-            return;
-        }
-
-        self.advance();
-
-        let value = (&self.source[self.start + 1..self.current - 1]).to_owned();
-        self.add_token_with_lexeme(TokenType::String, value);
     }
 
     fn advance(&mut self) -> char {

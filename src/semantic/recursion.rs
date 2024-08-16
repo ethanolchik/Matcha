@@ -22,10 +22,10 @@ pub struct RecursionChecker {
 }
 
 impl RecursionChecker {
-    pub fn new(filename: String, symtable: SymbolTable) -> Self {
+    pub fn new(filename: String, symtable: SymbolTable, import_handler: ImportHandler) -> Self {
         Self {
             symtable,
-            import_handler: ImportHandler::new(filename.clone()),
+            import_handler,
             filename,
             had_error: false,
             recursion_stack: HashSet::new(),

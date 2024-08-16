@@ -1,0 +1,831 @@
+Some(
+    Module {
+        name: Identifier {
+            name: Identifier 't' (at 1:9),
+        },
+        filename: "./test/src/t.mt",
+        statements: [
+            Statement {
+                kind: Function(
+                    Function {
+                        name: Expression {
+                            kind: Identifier(
+                                Identifier {
+                                    name: Identifier 'println' (at 3:13),
+                                },
+                            ),
+                            pos: Position {
+                                start_line: 3,
+                                end_line: 3,
+                                start_pos: 13,
+                                end_pos: 13,
+                            },
+                        },
+                        parameters: [
+                            Variable {
+                                name: Expression {
+                                    kind: Identifier(
+                                        Identifier {
+                                            name: Identifier 'str' (at 3:17),
+                                        },
+                                    ),
+                                    pos: Position {
+                                        start_line: 3,
+                                        end_line: 3,
+                                        start_pos: 17,
+                                        end_pos: 17,
+                                    },
+                                },
+                                value: None,
+                                type_: Type {
+                                    kind: String,
+                                    modifiers: Modifiers {
+                                        is_export: false,
+                                        is_pub: false,
+                                        is_extern: false,
+                                        is_static: false,
+                                        is_const: false,
+                                    },
+                                    pos: Position {
+                                        start_line: 3,
+                                        end_line: 3,
+                                        start_pos: 18,
+                                        end_pos: 25,
+                                    },
+                                },
+                                is_field: false,
+                                owner: None,
+                            },
+                        ],
+                        type_: Type {
+                            kind: Void,
+                            modifiers: Modifiers {
+                                is_export: false,
+                                is_pub: false,
+                                is_extern: true,
+                                is_static: false,
+                                is_const: false,
+                            },
+                            pos: Position {
+                                start_line: 3,
+                                end_line: 3,
+                                start_pos: 34,
+                                end_pos: 39,
+                            },
+                        },
+                        body: Statement {
+                            kind: Block(
+                                Block {
+                                    statements: [],
+                                },
+                            ),
+                            pos: Position {
+                                start_line: 3,
+                                end_line: 3,
+                                start_pos: 13,
+                                end_pos: 13,
+                            },
+                        },
+                        is_method: false,
+                        obj_name: Some(
+                            Expression {
+                                kind: Identifier(
+                                    Identifier {
+                                        name: Identifier '' (at 0:0),
+                                    },
+                                ),
+                                pos: Position {
+                                    start_line: 3,
+                                    end_line: 0,
+                                    start_pos: 13,
+                                    end_pos: 0,
+                                },
+                            },
+                        ),
+                        obj_ref_name: Some(
+                            Expression {
+                                kind: Identifier(
+                                    Identifier {
+                                        name: Identifier '' (at 0:0),
+                                    },
+                                ),
+                                pos: Position {
+                                    start_line: 3,
+                                    end_line: 0,
+                                    start_pos: 0,
+                                    end_pos: 0,
+                                },
+                            },
+                        ),
+                    },
+                ),
+                pos: Position {
+                    start_line: 3,
+                    end_line: 3,
+                    start_pos: 13,
+                    end_pos: 40,
+                },
+            },
+            Statement {
+                kind: Function(
+                    Function {
+                        name: Expression {
+                            kind: Identifier(
+                                Identifier {
+                                    name: Identifier 'concat' (at 4:12),
+                                },
+                            ),
+                            pos: Position {
+                                start_line: 4,
+                                end_line: 4,
+                                start_pos: 12,
+                                end_pos: 12,
+                            },
+                        },
+                        parameters: [
+                            Variable {
+                                name: Expression {
+                                    kind: Identifier(
+                                        Identifier {
+                                            name: Identifier 'a' (at 4:14),
+                                        },
+                                    ),
+                                    pos: Position {
+                                        start_line: 4,
+                                        end_line: 4,
+                                        start_pos: 14,
+                                        end_pos: 14,
+                                    },
+                                },
+                                value: None,
+                                type_: Type {
+                                    kind: String,
+                                    modifiers: Modifiers {
+                                        is_export: false,
+                                        is_pub: false,
+                                        is_extern: false,
+                                        is_static: false,
+                                        is_const: false,
+                                    },
+                                    pos: Position {
+                                        start_line: 4,
+                                        end_line: 4,
+                                        start_pos: 15,
+                                        end_pos: 22,
+                                    },
+                                },
+                                is_field: false,
+                                owner: None,
+                            },
+                            Variable {
+                                name: Expression {
+                                    kind: Identifier(
+                                        Identifier {
+                                            name: Identifier 'b' (at 4:25),
+                                        },
+                                    ),
+                                    pos: Position {
+                                        start_line: 4,
+                                        end_line: 4,
+                                        start_pos: 14,
+                                        end_pos: 25,
+                                    },
+                                },
+                                value: None,
+                                type_: Type {
+                                    kind: String,
+                                    modifiers: Modifiers {
+                                        is_export: false,
+                                        is_pub: false,
+                                        is_extern: false,
+                                        is_static: false,
+                                        is_const: false,
+                                    },
+                                    pos: Position {
+                                        start_line: 4,
+                                        end_line: 4,
+                                        start_pos: 26,
+                                        end_pos: 33,
+                                    },
+                                },
+                                is_field: false,
+                                owner: None,
+                            },
+                        ],
+                        type_: Type {
+                            kind: String,
+                            modifiers: Modifiers {
+                                is_export: false,
+                                is_pub: false,
+                                is_extern: true,
+                                is_static: false,
+                                is_const: false,
+                            },
+                            pos: Position {
+                                start_line: 4,
+                                end_line: 4,
+                                start_pos: 42,
+                                end_pos: 49,
+                            },
+                        },
+                        body: Statement {
+                            kind: Block(
+                                Block {
+                                    statements: [],
+                                },
+                            ),
+                            pos: Position {
+                                start_line: 4,
+                                end_line: 4,
+                                start_pos: 12,
+                                end_pos: 12,
+                            },
+                        },
+                        is_method: false,
+                        obj_name: Some(
+                            Expression {
+                                kind: Identifier(
+                                    Identifier {
+                                        name: Identifier '' (at 0:0),
+                                    },
+                                ),
+                                pos: Position {
+                                    start_line: 4,
+                                    end_line: 0,
+                                    start_pos: 12,
+                                    end_pos: 0,
+                                },
+                            },
+                        ),
+                        obj_ref_name: Some(
+                            Expression {
+                                kind: Identifier(
+                                    Identifier {
+                                        name: Identifier '' (at 0:0),
+                                    },
+                                ),
+                                pos: Position {
+                                    start_line: 4,
+                                    end_line: 0,
+                                    start_pos: 0,
+                                    end_pos: 0,
+                                },
+                            },
+                        ),
+                    },
+                ),
+                pos: Position {
+                    start_line: 4,
+                    end_line: 4,
+                    start_pos: 12,
+                    end_pos: 50,
+                },
+            },
+            Statement {
+                kind: Struct(
+                    Struct {
+                        name: Expression {
+                            kind: Identifier(
+                                Identifier {
+                                    name: Identifier 'Person' (at 6:14),
+                                },
+                            ),
+                            pos: Position {
+                                start_line: 6,
+                                end_line: 6,
+                                start_pos: 14,
+                                end_pos: 14,
+                            },
+                        },
+                        fields: [
+                            Variable {
+                                name: Expression {
+                                    kind: Identifier(
+                                        Identifier {
+                                            name: Identifier 'name' (at 7:9),
+                                        },
+                                    ),
+                                    pos: Position {
+                                        start_line: 6,
+                                        end_line: 7,
+                                        start_pos: 16,
+                                        end_pos: 9,
+                                    },
+                                },
+                                value: None,
+                                type_: Type {
+                                    kind: String,
+                                    modifiers: Modifiers {
+                                        is_export: false,
+                                        is_pub: false,
+                                        is_extern: false,
+                                        is_static: false,
+                                        is_const: false,
+                                    },
+                                    pos: Position {
+                                        start_line: 7,
+                                        end_line: 7,
+                                        start_pos: 10,
+                                        end_pos: 17,
+                                    },
+                                },
+                                is_field: true,
+                                owner: Some(
+                                    "Person",
+                                ),
+                            },
+                        ],
+                        methods: [],
+                        type_: Type {
+                            kind: UserType(
+                                UserType {
+                                    name: "Person",
+                                    kind: Struct,
+                                },
+                            ),
+                            modifiers: Modifiers {
+                                is_export: false,
+                                is_pub: false,
+                                is_extern: false,
+                                is_static: false,
+                                is_const: false,
+                            },
+                            pos: Position {
+                                start_line: 6,
+                                end_line: 6,
+                                start_pos: 14,
+                                end_pos: 14,
+                            },
+                        },
+                    },
+                ),
+                pos: Position {
+                    start_line: 6,
+                    end_line: 8,
+                    start_pos: 14,
+                    end_pos: 2,
+                },
+            },
+            Statement {
+                kind: Function(
+                    Function {
+                        name: Expression {
+                            kind: Identifier(
+                                Identifier {
+                                    name: Identifier 'test' (at 10:10),
+                                },
+                            ),
+                            pos: Position {
+                                start_line: 10,
+                                end_line: 10,
+                                start_pos: 10,
+                                end_pos: 10,
+                            },
+                        },
+                        parameters: [],
+                        type_: Type {
+                            kind: UserType(
+                                UserType {
+                                    name: "Person",
+                                    kind: Unknown,
+                                },
+                            ),
+                            modifiers: Modifiers {
+                                is_export: false,
+                                is_pub: false,
+                                is_extern: false,
+                                is_static: false,
+                                is_const: false,
+                            },
+                            pos: Position {
+                                start_line: 10,
+                                end_line: 10,
+                                start_pos: 13,
+                                end_pos: 20,
+                            },
+                        },
+                        body: Statement {
+                            kind: Block(
+                                Block {
+                                    statements: [
+                                        Statement {
+                                            kind: Return(
+                                                Return {
+                                                    value: Some(
+                                                        Expression {
+                                                            kind: StructInit(
+                                                                StructInit {
+                                                                    name: Identifier 'Person' (at 11:18),
+                                                                    fields: [
+                                                                        (
+                                                                            Identifier 'name' (at 12:13),
+                                                                            Expression {
+                                                                                kind: Literal(
+                                                                                    Literal {
+                                                                                        value: String 'Ethan' (at 12:22),
+                                                                                    },
+                                                                                ),
+                                                                                pos: Position {
+                                                                                    start_line: 12,
+                                                                                    end_line: 12,
+                                                                                    start_pos: 22,
+                                                                                    end_pos: 22,
+                                                                                },
+                                                                            },
+                                                                        ),
+                                                                    ],
+                                                                },
+                                                            ),
+                                                            pos: Position {
+                                                                start_line: 12,
+                                                                end_line: 13,
+                                                                start_pos: 13,
+                                                                end_pos: 6,
+                                                            },
+                                                        },
+                                                    ),
+                                                    pos: Position {
+                                                        start_line: 11,
+                                                        end_line: 13,
+                                                        start_pos: 18,
+                                                        end_pos: 7,
+                                                    },
+                                                },
+                                            ),
+                                            pos: Position {
+                                                start_line: 11,
+                                                end_line: 13,
+                                                start_pos: 18,
+                                                end_pos: 7,
+                                            },
+                                        },
+                                    ],
+                                },
+                            ),
+                            pos: Position {
+                                start_line: 11,
+                                end_line: 14,
+                                start_pos: 11,
+                                end_pos: 2,
+                            },
+                        },
+                        is_method: false,
+                        obj_name: Some(
+                            Expression {
+                                kind: Identifier(
+                                    Identifier {
+                                        name: Identifier '' (at 0:0),
+                                    },
+                                ),
+                                pos: Position {
+                                    start_line: 10,
+                                    end_line: 0,
+                                    start_pos: 10,
+                                    end_pos: 0,
+                                },
+                            },
+                        ),
+                        obj_ref_name: Some(
+                            Expression {
+                                kind: Identifier(
+                                    Identifier {
+                                        name: Identifier '' (at 0:0),
+                                    },
+                                ),
+                                pos: Position {
+                                    start_line: 10,
+                                    end_line: 0,
+                                    start_pos: 0,
+                                    end_pos: 0,
+                                },
+                            },
+                        ),
+                    },
+                ),
+                pos: Position {
+                    start_line: 10,
+                    end_line: 14,
+                    start_pos: 10,
+                    end_pos: 2,
+                },
+            },
+            Statement {
+                kind: Function(
+                    Function {
+                        name: Expression {
+                            kind: Identifier(
+                                Identifier {
+                                    name: Identifier 'main' (at 16:10),
+                                },
+                            ),
+                            pos: Position {
+                                start_line: 16,
+                                end_line: 16,
+                                start_pos: 10,
+                                end_pos: 10,
+                            },
+                        },
+                        parameters: [],
+                        type_: Type {
+                            kind: Int32,
+                            modifiers: Modifiers {
+                                is_export: false,
+                                is_pub: false,
+                                is_extern: false,
+                                is_static: false,
+                                is_const: false,
+                            },
+                            pos: Position {
+                                start_line: 16,
+                                end_line: 16,
+                                start_pos: 13,
+                                end_pos: 19,
+                            },
+                        },
+                        body: Statement {
+                            kind: Block(
+                                Block {
+                                    statements: [
+                                        Statement {
+                                            kind: Variable(
+                                                Variable {
+                                                    name: Expression {
+                                                        kind: Identifier(
+                                                            Identifier {
+                                                                name: Identifier 'p' (at 17:10),
+                                                            },
+                                                        ),
+                                                        pos: Position {
+                                                            start_line: 17,
+                                                            end_line: 17,
+                                                            start_pos: 10,
+                                                            end_pos: 10,
+                                                        },
+                                                    },
+                                                    value: Some(
+                                                        Expression {
+                                                            kind: StructInit(
+                                                                StructInit {
+                                                                    name: Identifier 'Person' (at 17:27),
+                                                                    fields: [
+                                                                        (
+                                                                            Identifier 'name' (at 18:13),
+                                                                            Expression {
+                                                                                kind: Literal(
+                                                                                    Literal {
+                                                                                        value: String 'Ethan' (at 18:22),
+                                                                                    },
+                                                                                ),
+                                                                                pos: Position {
+                                                                                    start_line: 18,
+                                                                                    end_line: 18,
+                                                                                    start_pos: 22,
+                                                                                    end_pos: 22,
+                                                                                },
+                                                                            },
+                                                                        ),
+                                                                    ],
+                                                                },
+                                                            ),
+                                                            pos: Position {
+                                                                start_line: 18,
+                                                                end_line: 19,
+                                                                start_pos: 13,
+                                                                end_pos: 6,
+                                                            },
+                                                        },
+                                                    ),
+                                                    type_: Type {
+                                                        kind: UserType(
+                                                            UserType {
+                                                                name: "Person",
+                                                                kind: Unknown,
+                                                            },
+                                                        ),
+                                                        modifiers: Modifiers {
+                                                            is_export: false,
+                                                            is_pub: false,
+                                                            is_extern: false,
+                                                            is_static: false,
+                                                            is_const: false,
+                                                        },
+                                                        pos: Position {
+                                                            start_line: 17,
+                                                            end_line: 17,
+                                                            start_pos: 11,
+                                                            end_pos: 18,
+                                                        },
+                                                    },
+                                                    is_field: false,
+                                                    owner: None,
+                                                },
+                                            ),
+                                            pos: Position {
+                                                start_line: 17,
+                                                end_line: 19,
+                                                start_pos: 10,
+                                                end_pos: 7,
+                                            },
+                                        },
+                                        Statement {
+                                            kind: Expression(
+                                                Expression {
+                                                    kind: Call(
+                                                        Call {
+                                                            callee: Expression {
+                                                                kind: Identifier(
+                                                                    Identifier {
+                                                                        name: Identifier 'println' (at 21:12),
+                                                                    },
+                                                                ),
+                                                                pos: Position {
+                                                                    start_line: 21,
+                                                                    end_line: 21,
+                                                                    start_pos: 12,
+                                                                    end_pos: 12,
+                                                                },
+                                                            },
+                                                            args: [
+                                                                Expression {
+                                                                    kind: Call(
+                                                                        Call {
+                                                                            callee: Expression {
+                                                                                kind: Identifier(
+                                                                                    Identifier {
+                                                                                        name: Identifier 'concat' (at 21:19),
+                                                                                    },
+                                                                                ),
+                                                                                pos: Position {
+                                                                                    start_line: 21,
+                                                                                    end_line: 21,
+                                                                                    start_pos: 19,
+                                                                                    end_pos: 19,
+                                                                                },
+                                                                            },
+                                                                            args: [
+                                                                                Expression {
+                                                                                    kind: Literal(
+                                                                                        Literal {
+                                                                                            value: String 'Hello, ' (at 21:29),
+                                                                                        },
+                                                                                    ),
+                                                                                    pos: Position {
+                                                                                        start_line: 21,
+                                                                                        end_line: 21,
+                                                                                        start_pos: 29,
+                                                                                        end_pos: 29,
+                                                                                    },
+                                                                                },
+                                                                                Expression {
+                                                                                    kind: Get(
+                                                                                        Get {
+                                                                                            object: Expression {
+                                                                                                kind: Identifier(
+                                                                                                    Identifier {
+                                                                                                        name: Identifier 'p' (at 21:32),
+                                                                                                    },
+                                                                                                ),
+                                                                                                pos: Position {
+                                                                                                    start_line: 21,
+                                                                                                    end_line: 21,
+                                                                                                    start_pos: 32,
+                                                                                                    end_pos: 32,
+                                                                                                },
+                                                                                            },
+                                                                                            name: Expression {
+                                                                                                kind: Identifier(
+                                                                                                    Identifier {
+                                                                                                        name: Identifier 'name' (at 21:37),
+                                                                                                    },
+                                                                                                ),
+                                                                                                pos: Position {
+                                                                                                    start_line: 21,
+                                                                                                    end_line: 21,
+                                                                                                    start_pos: 37,
+                                                                                                    end_pos: 37,
+                                                                                                },
+                                                                                            },
+                                                                                        },
+                                                                                    ),
+                                                                                    pos: Position {
+                                                                                        start_line: 21,
+                                                                                        end_line: 21,
+                                                                                        start_pos: 37,
+                                                                                        end_pos: 37,
+                                                                                    },
+                                                                                },
+                                                                            ],
+                                                                        },
+                                                                    ),
+                                                                    pos: Position {
+                                                                        start_line: 21,
+                                                                        end_line: 21,
+                                                                        start_pos: 19,
+                                                                        end_pos: 38,
+                                                                    },
+                                                                },
+                                                            ],
+                                                        },
+                                                    ),
+                                                    pos: Position {
+                                                        start_line: 21,
+                                                        end_line: 21,
+                                                        start_pos: 12,
+                                                        end_pos: 39,
+                                                    },
+                                                },
+                                            ),
+                                            pos: Position {
+                                                start_line: 21,
+                                                end_line: 21,
+                                                start_pos: 12,
+                                                end_pos: 39,
+                                            },
+                                        },
+                                        Statement {
+                                            kind: Return(
+                                                Return {
+                                                    value: Some(
+                                                        Expression {
+                                                            kind: Literal(
+                                                                Literal {
+                                                                    value: Integer '0' (at 23:13),
+                                                                },
+                                                            ),
+                                                            pos: Position {
+                                                                start_line: 23,
+                                                                end_line: 23,
+                                                                start_pos: 13,
+                                                                end_pos: 13,
+                                                            },
+                                                        },
+                                                    ),
+                                                    pos: Position {
+                                                        start_line: 23,
+                                                        end_line: 23,
+                                                        start_pos: 13,
+                                                        end_pos: 14,
+                                                    },
+                                                },
+                                            ),
+                                            pos: Position {
+                                                start_line: 23,
+                                                end_line: 23,
+                                                start_pos: 13,
+                                                end_pos: 14,
+                                            },
+                                        },
+                                    ],
+                                },
+                            ),
+                            pos: Position {
+                                start_line: 17,
+                                end_line: 24,
+                                start_pos: 8,
+                                end_pos: 2,
+                            },
+                        },
+                        is_method: false,
+                        obj_name: Some(
+                            Expression {
+                                kind: Identifier(
+                                    Identifier {
+                                        name: Identifier '' (at 0:0),
+                                    },
+                                ),
+                                pos: Position {
+                                    start_line: 16,
+                                    end_line: 0,
+                                    start_pos: 10,
+                                    end_pos: 0,
+                                },
+                            },
+                        ),
+                        obj_ref_name: Some(
+                            Expression {
+                                kind: Identifier(
+                                    Identifier {
+                                        name: Identifier '' (at 0:0),
+                                    },
+                                ),
+                                pos: Position {
+                                    start_line: 16,
+                                    end_line: 0,
+                                    start_pos: 0,
+                                    end_pos: 0,
+                                },
+                            },
+                        ),
+                    },
+                ),
+                pos: Position {
+                    start_line: 16,
+                    end_line: 24,
+                    start_pos: 10,
+                    end_pos: 2,
+                },
+            },
+        ],
+        imports: [],
+    },
+)

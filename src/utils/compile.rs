@@ -11,16 +11,52 @@ use crate::{
     semantic::{
         first_pass::FirstPassResolver, recursion::RecursionChecker, resolver::Resolver, SymbolTable,
     },
+    codegen::codegen::Codegen
 };
 
-use std::fs::read_to_string;
+use std::{fs::read_to_string, os::unix::process::ExitStatusExt};
+use std::process::Command;
 
 //> Definitions
 
 pub fn compile(filename: String) -> Option<Module> {
     let m = parse(filename.clone()).unwrap();
     let symtable = resolve(filename.clone(), &m).unwrap();
+
     debug!(format!("{:#?}", symtable.decl_queue));
+
+    let mut codegen = Codegen::new(filename.clone(), symtable.clone(), symtable.import_handler);
+    codegen.generate(&m);
+    
+    let output = Command::new("gcc")
+        .arg(filename.clone() + ".c")
+        .arg("-o")
+        .arg("out")
+        .output();
+
+    match output {
+        Ok(_) => (),
+        Err(err) => panic!("Failed to compile file {}: {}", filename.clone(), err),
+    }
+
+    // Command::new("rm")
+    //     .arg(filename.clone() + ".c")
+    //     .output()
+    //     .unwrap();
+
+    let exit_code = Command::new("./out").status().unwrap();
+
+    // Command::new("rm")
+    //     .arg("out")
+    //     .output()
+    //     .unwrap();
+
+    match exit_code.code() {
+        Some(0) => (),
+        Some(code) => panic!("Program exited with code {}", code),
+        None => panic!("Program exited with signal {}", exit_code.signal().unwrap()),
+    }
+
     Some(m)
 }
 
@@ -51,10 +87,13 @@ pub fn resolve(filename: String, statements: &Module) -> Option<SymbolTable> {
     let mut first_pass_resolver = FirstPassResolver::new(filename.clone());
     first_pass_resolver.resolve(statements);
 
+    first_pass_resolver.symtable.import_handler = first_pass_resolver.import_handler.clone();
+
     let mut resolver = Resolver::new(
         first_pass_resolver.symtable,
         filename.clone(),
         String::from(""),
+        first_pass_resolver.import_handler,
     );
     resolver.resolve(statements);
 
@@ -62,7 +101,7 @@ pub fn resolve(filename: String, statements: &Module) -> Option<SymbolTable> {
         return None;
     }
 
-    let mut recursion_checker = RecursionChecker::new(filename.clone(), resolver.symtable.clone());
+    let mut recursion_checker = RecursionChecker::new(filename.clone(), resolver.symtable.clone(), resolver.import_handler);
     recursion_checker.check(statements);
 
     if recursion_checker.had_error {

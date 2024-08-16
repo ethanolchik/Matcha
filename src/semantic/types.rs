@@ -4,7 +4,12 @@
 
 //> Imports
 
-use crate::{frontend::lexer::token::TokenType, utils::Position};
+use crate::{
+    frontend::lexer::token::TokenType,
+    utils::Position,
+
+    ast::ast::Function,
+};
 
 //> Definitions
 
@@ -27,6 +32,7 @@ pub enum TypeKind {
     Float64,
     Bool,
     String,
+    Char,
     Void,
     Struct,
     Enum,
@@ -46,6 +52,8 @@ pub struct Type {
     pub modifiers: Modifiers,
 
     pub pos: Position,
+
+    pub methods: Vec<Function>,
 }
 
 /// UserType(name, kind) struct<br>
@@ -73,11 +81,11 @@ pub enum UserTypeKind {
 /// impl Debug, Clone
 #[derive(Debug, Clone)]
 pub struct Modifiers {
-    pub is_export: bool, // TODO: Change this to an 'export' block.
     pub is_pub: bool,
     pub is_extern: bool,
     pub is_static: bool,
     pub is_const: bool,
+    pub is_builtin: bool,
 }
 
 //> Implementations
@@ -142,6 +150,10 @@ impl PartialEq for TypeKind {
                 TypeKind::String => true,
                 _ => false,
             },
+            TypeKind::Char => match other {
+                TypeKind::Char => true,
+                _ => false,
+            },
             TypeKind::Void => match other {
                 TypeKind::Void => true,
                 _ => false,
@@ -202,18 +214,21 @@ impl Type {
             kind,
             modifiers,
             pos,
+            methods: Vec::new(),
         }
     }
 
     pub fn is_primitive(&self) -> bool {
-        match self.kind {
+        match &self.kind {
             TypeKind::Int32
             | TypeKind::Int64
             | TypeKind::Float32
             | TypeKind::Float64
             | TypeKind::Bool
             | TypeKind::String
+            | TypeKind::Char
             | TypeKind::Void => true,
+            TypeKind::Array(t) => t.is_primitive(),
             _ => false,
         }
     }
@@ -226,6 +241,7 @@ impl Type {
             | TypeKind::Float64
             | TypeKind::Bool
             | TypeKind::String
+            | TypeKind::Char
             | TypeKind::Void => true,
             _ => false,
         }
@@ -233,7 +249,7 @@ impl Type {
 
     pub fn is_primitive_from_string(name: String) -> bool {
         match name.as_str() {
-            "Int32" | "Int64" | "Float32" | "Float64" | "Bool" | "String" | "Void" => true,
+            "Int32" | "Int64" | "Float32" | "Float64" | "Bool" | "String" | "Char" | "Void" => true,
             _ => false,
         }
     }
@@ -287,6 +303,7 @@ impl Type {
             TypeKind::Float64 => String::from("Float64"),
             TypeKind::Bool => String::from("Bool"),
             TypeKind::String => String::from("String"),
+            TypeKind::Char => String::from("Char"),
             TypeKind::Void => String::from("Void"),
             TypeKind::Struct => String::from("Struct"),
             TypeKind::Enum => String::from("Enum"),
@@ -305,6 +322,7 @@ impl Type {
             "Float64" => TypeKind::Float64,
             "Bool" => TypeKind::Bool,
             "String" => TypeKind::String,
+            "Char" => TypeKind::Char,
             "Void" => TypeKind::Void,
             _ => return TypeKind::UserType(UserType::new(String::from(s), UserTypeKind::Unknown)),
         }
@@ -342,10 +360,23 @@ impl Type {
         array_type
     }
 
-    pub fn contains_name(&self, _name: String) -> bool {
+    pub fn contains_name(&self, name: String) -> bool {
         match &self.kind {
             TypeKind::UserType(_) => false,
-            _ => true, // TODO
+            _ => {
+                for m in &self.methods {
+                    let n = match &m.name.kind {
+                        super::ExpressionKind::Identifier(ident) => ident.name.lexeme.clone(),
+                        _ => unreachable!()
+                    };
+
+                    if n == name {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
         }
     }
 
@@ -366,6 +397,7 @@ impl TypeKind {
             TypeKind::Float64 => String::from("Float64"),
             TypeKind::Bool => String::from("Bool"),
             TypeKind::String => String::from("String"),
+            TypeKind::Char => String::from("Char"),
             TypeKind::Void => String::from("Void"),
             TypeKind::Struct => String::from("Struct"),
             TypeKind::Enum => String::from("Enum"),
@@ -427,27 +459,24 @@ impl UserType {
 
 impl Modifiers {
     pub fn new(
-        is_export: bool,
         is_pub: bool,
         is_extern: bool,
         is_static: bool,
         is_const: bool,
+        is_builtin: bool,
     ) -> Self {
         Self {
-            is_export,
             is_pub,
             is_extern,
             is_static,
             is_const,
+            is_builtin
         }
     }
 
     pub fn get_modifiers(&self) -> Vec<String> {
         let mut modifiers = Vec::<String>::new();
 
-        if self.is_export {
-            modifiers.push(String::from("export"))
-        }
         if self.is_pub {
             modifiers.push(String::from("pub"))
         }
@@ -464,16 +493,19 @@ impl Modifiers {
             modifiers.push(String::from("const"))
         }
 
+        if self.is_builtin {
+            modifiers.push(String::from("builtin"))
+        }
+
         modifiers
     }
 
     pub fn from_tokentype(&mut self, tt: TokenType) {
         match tt {
-            TokenType::Export => self.is_export = true,
             TokenType::Pub => self.is_pub = true,
             TokenType::Extern => self.is_extern = true,
-            TokenType::Static => self.is_static = true,
             TokenType::Const => self.is_const = true,
+            TokenType::Builtin => self.is_builtin = true,
             _ => {}
         }
     }

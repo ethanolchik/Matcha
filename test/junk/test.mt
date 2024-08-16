@@ -24,12 +24,14 @@ func (d: Dog) bark(): pub String {
     return "Bark!";
 }
 
-func main(): Void {
+func main(): Int32 {
     var myDog: Dog = Dog.new("Foo", Colour.RED);
 
     var myColour: Colour = Colour.new();
 
     myDog.bark();
+
+    return 0;
 }
 
 export {

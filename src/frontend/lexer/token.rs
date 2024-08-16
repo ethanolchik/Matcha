@@ -70,6 +70,7 @@ pub enum TokenType {
     Integer,
     Float,
     String,
+    Char,
 
     // Keywords
     If,
@@ -92,8 +93,8 @@ pub enum TokenType {
     Pub,
     As,
     Extern,
-    Static,
-    Const, // TODO: Depreciate `static` for func (T) n() -> T {}
+    Const,
+    Builtin,
 
     // Other
     Eof,

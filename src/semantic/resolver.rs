@@ -5,16 +5,13 @@
 //> Imports
 
 use crate::{
-    semantic::{
-        types::*,
-        *
-    },
-    utils::imports::ImportHandler,
-    errors::errors::{
+    ast::ast::Visitor, errors::errors::{
         Diagnostic,
         DiagnosticKind
-    },
-    ast::ast::Visitor
+    }, frontend::lexer::token::{Token, TokenType}, semantic::{
+        types::*,
+        *
+    }, utils::imports::ImportHandler
 };
 
 //> Definitions
@@ -51,12 +48,12 @@ impl Clone for Resolver {
 
 // TODO: Typecheck
 impl Resolver {
-    pub fn new(symtable: SymbolTable, filename: String, source: String) -> Self {
+    pub fn new(symtable: SymbolTable, filename: String, source: String, import_handler: ImportHandler) -> Self {
         Self {
             symtable,
             filename: filename.clone(),
             source,
-            import_handler: ImportHandler::new(filename),
+            import_handler,
             had_error: false,
             in_function_body: false,
             in_loop: false,
@@ -66,6 +63,10 @@ impl Resolver {
 
     pub fn resolve(&mut self, program: &Module) {
         program.accept(self);
+    }
+
+    fn is_in_std(&self) -> bool {
+        self.filename.contains("/home/ethan/Matcha/std/")
     }
 
     fn error(&mut self, message: &str, line: usize, col: usize, labels: Option<Vec<String>>) {
@@ -123,406 +124,6 @@ impl Resolver {
             }
         }
     }
-
-    fn resolve_object_name(&mut self, kind: &ExpressionKind) -> String {
-        match kind {
-            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-            ExpressionKind::StructInit(s) => s.name.lexeme.clone(),
-            ExpressionKind::Call(c) => {
-                c.accept(self);
-                match &c.callee.kind {
-                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-                    _ => unreachable!(),
-                }
-            }
-            ExpressionKind::Get(g) => {
-                let get_parts = self.symtable.get_to_list(*g.clone(), &mut self.clone());
-                get_parts[0].0.clone()
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    fn resolve_get_name_info(&self, kind: &ExpressionKind) -> GetNameInfo {
-        match kind {
-            ExpressionKind::Identifier(id) => GetNameInfo {
-                name: id.name.lexeme.clone(),
-                is_call: false,
-                pos: Position {
-                    start_line: id.name.line,
-                    start_pos: id.name.pos,
-                    end_line: id.name.line,
-                    end_pos: id.name.pos + id.name.lexeme.len(),
-                },
-            },
-            ExpressionKind::StructInit(s) => GetNameInfo {
-                name: s.name.lexeme.clone(),
-                is_call: false,
-                pos: Position {
-                    start_line: s.name.line,
-                    start_pos: s.name.pos,
-                    end_line: s.name.line,
-                    end_pos: s.name.pos + s.name.lexeme.len(),
-                },
-            },
-            ExpressionKind::Call(c) => {
-                let name = match &c.callee.kind {
-                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-                    _ => unreachable!(),
-                };
-                GetNameInfo {
-                    name,
-                    is_call: true,
-                    pos: Position {
-                        start_line: c.callee.pos.start_line,
-                        start_pos: c.callee.pos.start_pos,
-                        end_line: c.callee.pos.end_line,
-                        end_pos: c.callee.pos.end_pos,
-                    },
-                }
-            }
-            ExpressionKind::Get(g) => {
-                let get_parts = self.symtable.get_to_list(*g.clone(), &mut self.clone());
-                GetNameInfo {
-                    name: get_parts[0].0.clone(),
-                    is_call: get_parts[0].1,
-                    pos: Position {
-                        start_line: g.object.pos.start_line,
-                        start_pos: g.object.pos.start_pos,
-                        end_line: g.object.pos.end_line,
-                        end_pos: g.object.pos.end_pos,
-                    },
-                }
-            }
-            _ => unreachable!(),
-        }
-    }
-    
-
-    fn is_name_exported(&self, module: &MatchaModule, name: &String) -> bool {
-        module.exported_symbols.iter().any(|sym| match &sym.kind {
-            SymbolKind::Constant(c) => matches!(&c.name.kind, ExpressionKind::Identifier(id) if id.name.lexeme == *name),
-            SymbolKind::Function(f) => matches!(&f.name.kind, ExpressionKind::Identifier(id) if id.name.lexeme == *name),
-            SymbolKind::Struct(s) => matches!(&s.name.kind, ExpressionKind::Identifier(id) if id.name.lexeme == *name),
-            SymbolKind::Enum(e) => matches!(&e.name.kind, ExpressionKind::Identifier(id) if id.name.lexeme == *name),
-            _ => false,
-        })
-    }    
-
-    fn suggest_and_fatal(&mut self, get_name_info: &GetNameInfo, object_name: &String) {
-        let suggestion = self.symtable.current().unwrap().get_module(object_name.clone()).unwrap().suggest(get_name_info.name.clone());
-        let message = format!("Name '{}' does not exist in module '{}'.", get_name_info.name, object_name);
-        self.fatal(
-            &message,
-            get_name_info.pos.start_line,
-            get_name_info.pos.start_pos,
-            suggestion.map(|s| vec![format!("Did you mean {}?", s)]),
-        );
-    }
-
-    fn is_defined_or_module(&mut self, id: &Identifier) -> bool {
-        self.symtable.current_mut().lookup(id.name.lexeme.clone()) ||
-        self.symtable.current().unwrap().get_module(id.name.lexeme.clone()).is_some()
-    }
-
-    fn suggest_and_error(&mut self, name: &String, line: usize, pos: usize) {
-        let suggestion = self.symtable.suggest(name.clone());
-        let message = format!("Undefined name '{}'", name);
-        self.error(
-            &message,
-            line,
-            pos,
-            suggestion.map(|s| vec![format!("Did you mean {}?", s)]),
-        );
-    }
-
-    fn process_symbol(&mut self, symbol_name: &String, get_name_info: &GetNameInfo) {
-        if let Some(sym) = self.symtable.current().unwrap().find(symbol_name.clone()) {
-            match sym.kind {
-                SymbolKind::Constant(ref v) | SymbolKind::Variable(ref v) => {
-                    self.process_variable_or_constant(v, get_name_info);
-                }
-                SymbolKind::Method(ref f) => {
-                    self.process_method(f, get_name_info);
-                }
-                SymbolKind::Struct(ref s) => {
-                    self.process_struct_or_enum_fields(&SymbolKind::Struct(s.clone()), get_name_info);
-                }
-                SymbolKind::Enum(ref e) => {
-                    self.process_struct_or_enum_fields(&SymbolKind::Enum(e.clone()), get_name_info);
-                }
-                SymbolKind::Type(ref t) => {
-                    self.process_type(t, get_name_info);
-                }
-                _ => unreachable!(),
-            }
-        }
-    }
-
-    fn process_get_chain(&mut self, g: &Get, get: &Get) {
-        let get_parts = self.symtable.get_to_list(g.clone(), &mut self.clone());
-        let mut obj = self.symtable.current().unwrap().find(get_parts[0].0.clone()).unwrap().kind;
-    
-        for i in 0..get_parts.len() - 1 {
-            let next_get = &get_parts[i + 1];
-            obj = match obj {
-                SymbolKind::Constant(ref c) | SymbolKind::Variable(ref c) => {
-                    self.process_chained_variable_or_constant(c, next_get)
-                }
-                SymbolKind::Method(ref f) => {
-                    self.process_chained_method(f, next_get)
-                }
-                SymbolKind::Struct(ref s) => {
-                    self.process_chained_struct_or_enum(&obj, next_get)
-                }
-                SymbolKind::Enum(ref e) => {
-                    self.process_chained_struct_or_enum(&obj, next_get)
-                }
-                _ => unreachable!(),
-            }
-        }
-    }
-    
-
-    fn process_variable_or_constant(&mut self, v: &Variable, get_name_info: &GetNameInfo) {
-        let t = v.type_.clone();
-        if t.is_primitive() {
-            self.check_primitive_type_contains_name(&t, get_name_info);
-        } else {
-            let ty = t.to_string().split_whitespace().nth(1).unwrap().to_string();
-            self.check_struct_or_enum_contains_name(&ty, get_name_info);
-        }
-    }
-
-    fn process_method(&mut self, f: &Function, get_name_info: &GetNameInfo) {
-        let t = f.type_.clone();
-        if t.is_primitive() {
-            self.check_primitive_type_contains_name(&t, get_name_info);
-        } else {
-            let ty = t.to_string().split_whitespace().nth(1).unwrap().to_string();
-            self.check_struct_or_enum_contains_name(&ty, get_name_info);
-        }
-    }
-
-    fn process_type(&mut self, t: &Type, get_name_info: &GetNameInfo) {
-        if self.symtable.primitive_type_contains_name(t.clone(), get_name_info.name.clone()) {
-            return;
-        } else {
-            self.fatal(
-                &format!("Name '{}' does not exist in type '{}'.", get_name_info.name, t.to_string()),
-                get_name_info.pos.start_line,
-                get_name_info.pos.start_pos,
-                None,
-            );
-        }
-    }
-
-    fn process_struct_or_enum_fields(&mut self, s: &SymbolKind, get_name_info: &GetNameInfo) {
-        match s {
-            SymbolKind::Struct(st) => {
-                if get_name_info.is_call {
-                    for method in &st.methods {
-                        let name = match &method.name.kind {
-                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-                            _ => unreachable!(),
-                        };
-                        if name == get_name_info.name {
-                            return;
-                        }
-                    }
-                } else {
-                    for field in &st.fields {
-                        let name = match &field.name.kind {
-                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-                            _ => unreachable!(),
-                        };
-                        if name == get_name_info.name {
-                            return;
-                        }
-                    }
-                }
-
-                self.fatal(
-                    &format!("Name '{}' does not exist in struct '{}'.", get_name_info.name, get_name_info.name),
-                    get_name_info.pos.start_line,
-                    get_name_info.pos.start_pos,
-                    None,
-                );
-            }
-            SymbolKind::Enum(e) => {
-                if get_name_info.is_call {
-                    for method in &e.methods {
-                        let name = match &method.name.kind {
-                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-                            _ => unreachable!(),
-                        };
-                        if name == get_name_info.name {
-                            return;
-                        }
-                    }
-                } else {
-                    for variant in &e.variants {
-                        let name = match &variant.name.kind {
-                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-                            _ => unreachable!(),
-                        };
-                        if name == get_name_info.name {
-                            return;
-                        }
-                    }
-                }
-
-                self.fatal(
-                    &format!("Name '{}' does not exist in enum '{}'.", get_name_info.name, get_name_info.name),
-                    get_name_info.pos.start_line,
-                    get_name_info.pos.start_pos,
-                    None,
-                );
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    fn check_primitive_type_contains_name(&mut self, t: &Type, get_name_info: &GetNameInfo) {
-        if self.symtable.primitive_type_contains_name(t.clone(), get_name_info.name.clone()) {
-            return;
-        } else {
-            self.fatal(
-                &format!("Name '{}' does not exist in type '{}'.", get_name_info.name, t.to_string()),
-                get_name_info.pos.start_line,
-                get_name_info.pos.start_pos,
-                None,
-            );
-        }
-    }
-
-    fn check_struct_or_enum_contains_name(&mut self, ty: &String, get_name_info: &GetNameInfo) {
-        if let Some(sym) = self.symtable.current().unwrap().find(ty.clone()) {
-            match sym.kind {
-                SymbolKind::Struct(ref s) => self.process_struct_or_enum_fields(&SymbolKind::Struct(s.clone()), get_name_info),
-                SymbolKind::Enum(ref e) => self.process_struct_or_enum_fields(&SymbolKind::Enum(e.clone()), get_name_info),
-                _ => unreachable!(),
-            }
-        }
-    }
-
-    fn process_chained_variable_or_constant(&mut self, c: &Variable, next_get: &(String, bool)) -> SymbolKind {
-        let t = c.type_.clone();
-        if t.is_primitive() {
-            self.check_primitive_type_contains_name(&t, &GetNameInfo {
-                name: next_get.0.clone(),
-                is_call: next_get.1,
-                pos: Position { start_line: c.name.pos.start_line, start_pos: c.name.pos.start_pos, end_line: c.name.pos.end_line, end_pos: c.name.pos.end_pos },
-            });
-            SymbolKind::Type(t)
-        } else {
-            let ty = t.to_string().split_whitespace().nth(1).unwrap().to_string();
-            self.check_struct_or_enum_contains_name(&ty, &GetNameInfo {
-                name: next_get.0.clone(),
-                is_call: next_get.1,
-                pos: Position { start_line: c.name.pos.start_line, start_pos: c.name.pos.start_pos, end_line: c.name.pos.end_line, end_pos: c.name.pos.end_pos },
-            });
-            self.symtable.current().unwrap().find(ty.clone()).unwrap().kind
-        }
-    }
-
-    fn process_chained_method(&mut self, f: &Function, next_get: &(String, bool)) -> SymbolKind {
-        let t = f.type_.clone();
-        if t.is_primitive() {
-            self.check_primitive_type_contains_name(&t, &GetNameInfo {
-                name: next_get.0.clone(),
-                is_call: next_get.1,
-                pos: Position { start_line: f.name.pos.start_line, start_pos: f.name.pos.start_pos, end_line: f.name.pos.end_line, end_pos: f.name.pos.end_pos },
-            });
-            SymbolKind::Type(t)
-        } else {
-            let ty = t.to_string().split_whitespace().nth(1).unwrap().to_string();
-            self.check_struct_or_enum_contains_name(&ty, &GetNameInfo {
-                name: next_get.0.clone(),
-                is_call: next_get.1,
-                pos: Position { start_line: f.name.pos.start_line, start_pos: f.name.pos.start_pos, end_line: f.name.pos.end_line, end_pos: f.name.pos.end_pos },
-            });
-            self.symtable.current().unwrap().find(ty.clone()).unwrap().kind
-        }
-    }    
-
-    fn process_chained_struct_or_enum(&mut self, kind: &SymbolKind, next_get: &(String, bool)) -> SymbolKind {
-        match kind {
-            SymbolKind::Struct(st) => {
-                if next_get.1 {
-                    for method in &st.methods {
-                        let name = match &method.name.kind {
-                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-                            _ => unreachable!(),
-                        };
-                        if name == next_get.0 {
-                            return SymbolKind::Method(method.clone());
-                        }
-                    }
-                } else {
-                    for field in &st.fields {
-                        let name = match &field.name.kind {
-                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-                            _ => unreachable!(),
-                        };
-                        if name == next_get.0 {
-                            if field.type_.modifiers.is_const {
-                                return SymbolKind::Constant(field.clone());
-                            } else {
-                                return SymbolKind::Variable(field.clone());
-                            }
-                        }
-                    }
-                }
-
-                self.fatal(
-                    &format!("Name '{}' does not exist in '{}'.", next_get.0, match &st.name.kind {
-                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-                        _ => unreachable!(),
-                    }),
-                    0, // Use the correct line number and position if available
-                    0,
-                    None,
-                );
-            }
-            SymbolKind::Enum(st) => {
-                if next_get.1 {
-                    for method in &st.methods {
-                        let name = match &method.name.kind {
-                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-                            _ => unreachable!(),
-                        };
-                        if name == next_get.0 {
-                            return SymbolKind::Method(method.clone());
-                        }
-                    }
-                } else {
-                    for variant in &st.variants {
-                        let name = match &variant.name.kind {
-                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-                            _ => unreachable!(),
-                        };
-                        if name == next_get.0 {
-                            return SymbolKind::Constant(variant.clone());
-                        }
-                    }
-                }
-
-                self.fatal(
-                    &format!("Name '{}' does not exist in '{}'.", next_get.0, match &st.name.kind {
-                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-                        _ => unreachable!(),
-                    }),
-                    0, // Use the correct line number and position if available
-                    0,
-                    None,
-                );
-            }
-            _ => unreachable!(),
-        }
-        
-        panic!()
-    }    
 }
 
 impl Visitor for Resolver {
@@ -750,103 +351,142 @@ impl Visitor for Resolver {
                     );
                 }
             } else {
-                if let Some(sym) = self.symtable.current_mut().get_struct_by_name(obj_type.clone()) {
-                    let mut x = match sym.get() {
-                        SymbolKind::Struct(s) => s,
-                        _ => unreachable!()
-                    };
-    
-                    for m in x.methods.clone() {
-                        let m_name = match &m.name.kind {
-                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-                            _ => unreachable!()
-                        };
-    
-                        if m_name == name {
-                            self.error(
-                                format!("Attribute with name '{}' already exists on {}", name, obj_type).as_str(),
-                                function.name.pos.start_line,
-                                function.name.pos.start_pos,
-                                None
-                            );
-                        }
+                if function.type_.modifiers.is_builtin {
+                    if !self.is_in_std() {
+                        self.error(
+                            "Builtin methods can only be defined in the standard library",
+                            function.name.pos.start_line,
+                            function.name.pos.start_pos,
+                            None
+                        );
                     }
-    
-                    for f in x.fields.clone() {
-                        let f_name = match &f.name.kind {
-                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-                            _ => unreachable!()
-                        };
-    
-                        if f_name == name {
-                            self.error(
-                                format!("Attribute with name '{}' already exists on {}", name, obj_type).as_str(),
-                                function.name.pos.start_line,
-                                function.name.pos.start_pos,
-                                None
-                            );
-                        }
-                    }
-    
-                    x.methods.push(function.clone());
-    
-                    let s_name = match &x.name.kind {
-                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-                        _ => unreachable!()
-                    };
-                    self.symtable.current_mut().edit_struct(s_name, x.clone());
-                } else if let Some(sym) = self.symtable.current_mut().get_enum_by_name(obj_type.clone()) {
-                    let mut x = match sym.get() {
-                        SymbolKind::Enum(e) => e,
-                        _ => unreachable!()
-                    };
-    
-                    for m in x.methods.clone() {
-                        let m_name = match &m.name.kind {
-                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-                            _ => unreachable!()
-                        };
-    
-                        if m_name == name {
-                            self.error(
-                                format!("Attribute with name '{}' already exists on {}", name, obj_type).as_str(),
-                                function.name.pos.start_line,
-                                function.name.pos.start_pos,
-                                None
-                            );
-                        }
-                    }
-    
-                    for v in x.variants.clone() {
-                        let v_name = match &v.name.kind {
-                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-                            _ => unreachable!()
-                        };
-    
-                        if v_name == name {
-                            self.error(
-                                format!("Attribute with name '{}' already exists on {}", name, obj_type).as_str(),
-                                function.name.pos.start_line,
-                                function.name.pos.start_pos,
-                                None
-                            );
-                        }
-                    }
-    
-                    x.methods.push(function.clone());
 
-                    let e_name = match &x.name.kind {
-                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-                        _ => unreachable!()
-                    };
-                    self.symtable.current_mut().edit_enum(e_name, x.clone());
+                    if Type::is_primitive_from_string(obj_type.clone()) {
+                        if let Some(sym) = self.symtable.current_mut().get_type_by_name(obj_type.clone()) {
+                            let mut x = match sym.get() {
+                                SymbolKind::Type(t) => t,
+                                _ => unreachable!()
+                            };
+    
+                            x.methods.push(function.clone());
+    
+                            let t_name = x.to_string();
+                            self.symtable.current_mut().edit_type(t_name, x.clone());
+                        } else {
+                            self.fatal(
+                                format!("Object {:?} not found.", obj_type).as_str(),
+                                function.name.pos.start_line,
+                                function.name.pos.start_pos,
+                                None
+                            );
+                        }
+                    } else {
+                        self.error(
+                            "Builtin methods can only be defined on primitive types",
+                            function.name.pos.start_line,
+                            function.name.pos.start_pos,
+                            None
+                        );
+                    }
                 } else {
-                    self.fatal(
-                        format!("Object {:?} not found.", obj_type).as_str(),
-                        function.name.pos.start_line,
-                        function.name.pos.start_pos,
-                        None
-                    );
+                    if let Some(sym) = self.symtable.current_mut().get_struct_by_name(obj_type.clone()) {
+                        let mut x = match sym.get() {
+                            SymbolKind::Struct(s) => s,
+                            _ => unreachable!()
+                        };
+        
+                        for m in x.methods.clone() {
+                            let m_name = match &m.name.kind {
+                                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                _ => unreachable!()
+                            };
+        
+                            if m_name == name {
+                                self.error(
+                                    format!("Attribute with name '{}' already exists on {}", name, obj_type).as_str(),
+                                    function.name.pos.start_line,
+                                    function.name.pos.start_pos,
+                                    None
+                                );
+                            }
+                        }
+        
+                        for f in x.fields.clone() {
+                            let f_name = match &f.name.kind {
+                                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                _ => unreachable!()
+                            };
+        
+                            if f_name == name {
+                                self.error(
+                                    format!("Attribute with name '{}' already exists on {}", name, obj_type).as_str(),
+                                    function.name.pos.start_line,
+                                    function.name.pos.start_pos,
+                                    None
+                                );
+                            }
+                        }
+        
+                        x.methods.push(function.clone());
+        
+                        let s_name = match &x.name.kind {
+                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                            _ => unreachable!()
+                        };
+                        self.symtable.current_mut().edit_struct(s_name, x.clone());
+                    } else if let Some(sym) = self.symtable.current_mut().get_enum_by_name(obj_type.clone()) {
+                        let mut x = match sym.get() {
+                            SymbolKind::Enum(e) => e,
+                            _ => unreachable!()
+                        };
+        
+                        for m in x.methods.clone() {
+                            let m_name = match &m.name.kind {
+                                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                _ => unreachable!()
+                            };
+        
+                            if m_name == name {
+                                self.error(
+                                    format!("Attribute with name '{}' already exists on {}", name, obj_type).as_str(),
+                                    function.name.pos.start_line,
+                                    function.name.pos.start_pos,
+                                    None
+                                );
+                            }
+                        }
+        
+                        for v in x.variants.clone() {
+                            let v_name = match &v.name.kind {
+                                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                _ => unreachable!()
+                            };
+        
+                            if v_name == name {
+                                self.error(
+                                    format!("Attribute with name '{}' already exists on {}", name, obj_type).as_str(),
+                                    function.name.pos.start_line,
+                                    function.name.pos.start_pos,
+                                    None
+                                );
+                            }
+                        }
+        
+                        x.methods.push(function.clone());
+    
+                        let e_name = match &x.name.kind {
+                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                            _ => unreachable!()
+                        };
+                        self.symtable.current_mut().edit_enum(e_name, x.clone());
+                    } else {
+                        self.fatal(
+                            format!("Object {:?} not found.", obj_type).as_str(),
+                            function.name.pos.start_line,
+                            function.name.pos.start_pos,
+                            None
+                        );
+                    }
                 }
             }
         } else {
@@ -1285,1650 +925,1587 @@ impl Visitor for Resolver {
         TypeOption::None
     }
 
-    // fn visit_get(&mut self, get: &Get) -> TypeOption {
-    //     let object_name = match &get.object.kind {
-    //         ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //         ExpressionKind::StructInit(s) => {
-    //             s.name.lexeme.clone()
-    //         }
-    //         ExpressionKind::Call(c) => {
-    //             c.accept(self);
-    //             match &c.callee.kind {
-    //                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                 _ => unreachable!()
-    //             }
-    //         }
-    //         ExpressionKind::Get(g) => {
-    //             let get_parts = self.symtable.get_to_list(*g.clone(), &mut self.clone());
-    //             get_parts[0].0.clone()
-    //         }
-    //         _ => {
-    //             return TypeOption::None // TODO: check for other expressions.
-    //         }
-    //     };
-
-    //     let mut is_call: bool = false;
-
-    //     let get_name = match &get.name.kind {
-    //         ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //         ExpressionKind::StructInit(s) => {
-    //             s.name.lexeme.clone()
-    //         }
-    //         ExpressionKind::Call(c) => {
-    //             println!("{:?}", get);
-    //             is_call = true;
-
-    //             match &c.callee.kind {
-    //                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                 _ => unreachable!()
-    //             }
-    //         }
-    //         ExpressionKind::Get(g) => {
-    //             let get_parts = self.symtable.get_to_list(*g.clone(), &mut self.clone());
-    //             is_call = get_parts[0].1.clone();
-    //             get_parts[0].0.clone()
-    //         }
-    //         _ => {
-    //             return TypeOption::None // TODO: check for other expressions
-    //         }
-    //     };
-
-
-    //     let x = self.symtable.current().unwrap().get_module(object_name.clone());
-
-    //     if let Some(m) = x {
-    //         let mut found = false;
-
-    //         for sym in m.exported_symbols.clone() {
-    //             match sym.kind {
-    //                 SymbolKind::Constant(c) => {
-    //                     let name = match &c.name.kind {
-    //                         ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                         _ => unreachable!()
-    //                     };
-    //                     if name == get_name {
-    //                         found = true;
-    //                     }
-    //                 },
-    //                 SymbolKind::Function(f) => {
-    //                     let name = match &f.name.kind {
-    //                         ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                         _ => unreachable!()
-    //                     };
-    //                     if name == get_name {
-    //                         found = true;
-    //                     }
-    //                 },
-    //                 SymbolKind::Struct(s) => {
-    //                     let name = match &s.name.kind {
-    //                         ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                         _ => unreachable!()
-    //                     };
-    //                     if name == get_name {
-    //                         found = true;
-    //                     }
-    //                 },
-    //                 SymbolKind::Enum(e) => {
-    //                     let name = match &e.name.kind {
-    //                         ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                         _ => unreachable!()
-    //                     };
-    //                     if name == get_name {
-    //                         found = true;
-    //                     }
-    //                 },
-    //                 _ => {}
-    //             }
-    //         }
-
-    //         if !found {
-    //             let x = m.suggest(get_name.clone());
-
-    //             if x.is_some() {
-    //                 self.fatal(
-    //                     format!("Name '{}' does not exist in module '{}'.", get_name, object_name).as_str(),
-    //                     get.name.pos.start_line,
-    //                     get.name.pos.start_pos,
-    //                     Some(vec![format!("Did you mean {}?", x.unwrap())])
-    //                 );
-    //             } else {
-    //                 self.fatal(
-    //                     format!("Name '{}' does not exist in module '{}'.", get_name, object_name).as_str(),
-    //                     get.name.pos.start_line,
-    //                     get.name.pos.start_pos,
-    //                     None
-    //                 );
-    //             }
-    //         }
-
-    //         return TypeOption::None;
-    //     }
-
-    //     let mut last: Option<SymbolKind> = None;
-
-    //     match &get.object.kind {
-    //         ExpressionKind::Identifier(id) => {
-    //             if !(self.symtable.current_mut().lookup(id.name.lexeme.clone()) || self.symtable.current().unwrap().get_module(id.name.lexeme.clone()).is_some()) {
-    //                 let x = self.symtable.suggest(id.name.lexeme.clone());
-
-    //                 if x.is_some() {
-    //                     self.error(
-    //                         format!("Undefined name '{}'", id.name.lexeme).as_str(),
-    //                         id.name.line,
-    //                         id.name.pos,
-    //                         Some(vec![format!("Did you mean {}?", x.unwrap())])
-    //                     );
-    //                 } else {
-    //                     self.error(
-    //                         format!("Undefined name '{}'", id.name.lexeme).as_str(),
-    //                         id.name.line,
-    //                         id.name.pos,
-    //                         None
-    //                     );
-    //                 }
-    //             } else {
-    //                 let sym = self.symtable.current().unwrap().find(id.name.lexeme.clone()).unwrap();
-    //                 match sym.kind {
-    //                     SymbolKind::Constant(ref v) | SymbolKind::Variable(ref v) => {
-    //                         let t = v.type_.clone();
-    //                         if t.is_primitive() {
-    //                             if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
-    //                                 return TypeOption::None;
-    //                             } else {
-    //                                 self.fatal(
-    //                                     format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
-    //                                     get.name.pos.start_line,
-    //                                     get.name.pos.start_pos,
-    //                                     None
-    //                                 );
-    //                             }
-    //                         } else {
-    //                             let ty = v.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
-    //                             let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
-
-    //                             if x.is_some() {
-    //                                 let t = x.unwrap();
-    //                                 let mut found = false;
-    //                                 match t.kind {
-    //                                     SymbolKind::Struct(s) => {
-    //                                         if is_call {
-    //                                             for m in &s.methods {
-    //                                                 let name = match &m.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-
-    //                                                 if name == get_name {
-    //                                                     found = true;
-    //                                                     last = Some(SymbolKind::Method(m.clone()));
-    //                                                     break;
-    //                                                 }
-    //                                             }
-    //                                         } else {
-    //                                             for f in &s.fields {
-    //                                                 let name = match &f.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-    //                                                 if name == get_name {
-    //                                                     found = true;
-    //                                                     last = Some(SymbolKind::Variable(f.clone()));
-    //                                                     break;
-    //                                                 }
-    //                                             }
-    //                                         }
-
-    //                                         // So here, we have already read "get.name". The problem is that later in the code we are checking if get.name exists in get.name
-    //                                         // since thats what we're setting last to be. We need to check if the variable found is the same as get.name.
-    //                                         if !found {
-    //                                             self.fatal(
-    //                                                 format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
-    //                                                 get.name.pos.start_line,
-    //                                                 get.name.pos.start_pos,
-    //                                                 None
-    //                                             );
-    //                                         } else {
-    //                                             if let Some(ref l) = last {
-    //                                                 match l {
-    //                                                     SymbolKind::Variable(v) => {
-    //                                                         let name = match &v.name.kind {
-    //                                                             ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                             _ => unreachable!()
-    //                                                         };
-    //                                                         if name == get_name {
-    //                                                             return TypeOption::None;
-    //                                                         }
-    //                                                     }
-    //                                                     SymbolKind::Method(m) => {
-    //                                                         let name = match &m.name.kind {
-    //                                                             ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                             _ => unreachable!()
-    //                                                         };
-    //                                                         if name == get_name {
-    //                                                             return TypeOption::None;
-    //                                                         }
-    //                                                     }
-    //                                                     _ => {}
-    //                                                 }
-    //                                             }
-    //                                         }
-    //                                     }
-    //                                     SymbolKind::Enum(e) => {
-    //                                         if is_call {
-    //                                             for m in &e.methods {
-    //                                                 let name = match &m.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-    //                                                 if name == get_name {
-    //                                                     found = true;
-    //                                                     last = Some(SymbolKind::Method(m.clone()));
-    //                                                     break;
-    //                                                 }
-    //                                             }
-    //                                         } else {
-    //                                             for v in &e.variants {
-    //                                                 let name = match &v.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-    //                                                 if name == get_name {
-    //                                                     found = true;
-    //                                                     last = Some(SymbolKind::Constant(v.clone()));
-    //                                                     break;
-    //                                                 }
-    //                                             }
-    //                                         }
-
-    //                                         if !found {
-    //                                             self.fatal(
-    //                                                 format!("Name '{}' does not exist in field of type {}.", get_name, ty.to_string()).as_str(),
-    //                                                 get.name.pos.start_line,
-    //                                                 get.name.pos.start_pos,
-    //                                                 None
-    //                                             );
-    //                                         }
-    //                                     }
-    //                                     _ => {
-    //                                         unreachable!()
-    //                                     }
-    //                                 }
-    //                             }
-    //                         }
-    //                     }
-    //                     SymbolKind::Method(f) => {
-    //                         let t = f.type_.clone();
-    //                         if t.is_primitive() {
-    //                             if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
-    //                                 return TypeOption::None;
-    //                             } else {
-    //                                 self.fatal(
-    //                                     format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
-    //                                     get.name.pos.start_line,
-    //                                     get.name.pos.start_pos,
-    //                                     None
-    //                                 );
-    //                             }
-    //                         } else {
-    //                             let ty = f.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
-    //                             let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
-
-    //                             if x.is_some() {
-    //                                 let t = x.unwrap();
-    //                                 match t.kind {
-    //                                     SymbolKind::Struct(s) => {
-    //                                         if is_call {
-    //                                             for m in &s.methods {
-    //                                                 let name = match &m.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-    //                                                 if name == get_name {
-    //                                                     return TypeOption::None;
-    //                                                 }
-    //                                             }
-    //                                         } else {
-    //                                             for f in &s.fields {
-    //                                                 let name = match &f.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-    //                                                 if name == get_name {
-    //                                                     return TypeOption::None;
-    //                                                 }
-    //                                             }
-    //                                         }
-
-    //                                         self.fatal(
-    //                                             format!("Name '{}' does not exist in field of type {}.", get_name, ty.to_string()).as_str(),
-    //                                             get.name.pos.start_line,
-    //                                             get.name.pos.start_pos,
-    //                                             None
-    //                                         );
-    //                                     }
-    //                                     SymbolKind::Enum(e) => {
-    //                                         if is_call {
-    //                                             for m in &e.methods {
-    //                                                 let name = match &m.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-    //                                                 if name == get_name {
-    //                                                     return TypeOption::None;
-    //                                                 }
-    //                                             }
-    //                                         } else {
-    //                                             for v in &e.variants {
-    //                                                 let name = match &v.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-    //                                                 if name == get_name {
-    //                                                     return TypeOption::None;
-    //                                                 }
-    //                                             }
-    //                                         }
-
-    //                                         self.fatal(
-    //                                             format!("Name '{}' does not exist in field of type {}.", get_name, ty.to_string()).as_str(),
-    //                                             get.name.pos.start_line,
-    //                                             get.name.pos.start_pos,
-    //                                             None
-    //                                         );
-    //                                     }
-    //                                     _ => unreachable!()
-    //                                 }
-    //                             }
-    //                         }
-    //                     }
-    //                     SymbolKind::Struct(s) => {
-    //                         if is_call {
-    //                             for m in &s.methods {
-    //                                 let name = match &m.name.kind {
-    //                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                     _ => unreachable!()
-    //                                 }; // TODO: Fix call checking. Currently, only certain calls will work.
-    //                                     // TODO: Fix access modifiers. We are not checking if the method/attribute is public.
-    //                                     // 
-    //                                 if name == get_name && m.type_.modifiers.is_static { 
-    //                                     return TypeOption::None;
-    //                                 }
-    //                             }
-    //                         } else {
-    //                             for f in &s.fields {
-    //                                 let name = match &f.name.kind {
-    //                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                     _ => unreachable!()
-    //                                 };
-    //                                 if name == get_name && f.type_.modifiers.is_static {
-    //                                     return TypeOption::None;
-    //                                 }
-    //                             }
-    //                         }
-
-    //                         self.fatal(
-    //                             format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
-    //                             get.name.pos.start_line,
-    //                             get.name.pos.start_pos,
-    //                             Some(vec![
-    //                                 "Did you forget to initialise the object?".to_string()
-    //                             ])
-    //                         );
-    //                     }
-    //                     SymbolKind::Enum(e) => {
-    //                         if is_call {
-    //                             for m in &e.methods {
-    //                                 let name = match &m.name.kind {
-    //                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                     _ => unreachable!()
-    //                                 };
-    //                                 if name == get_name {
-    //                                     return TypeOption::None;
-    //                                 }
-    //                             }
-    //                         } else {
-    //                             for v in &e.variants {
-    //                                 let name = match &v.name.kind {
-    //                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                     _ => unreachable!()
-    //                                 };
-    //                                 if name == get_name {
-    //                                     return TypeOption::None;
-    //                                 }
-    //                             }
-    //                         }
-
-    //                         self.fatal(
-    //                             format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
-    //                             get.name.pos.start_line,
-    //                             get.name.pos.start_pos,
-    //                             None
-    //                         );
-    //                     }
-    //                     SymbolKind::Type(t) => {
-    //                         // TODO: Static methods
-    //                         if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
-    //                             return TypeOption::None;
-    //                         } else {
-    //                             self.fatal(
-    //                                 format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
-    //                                 get.name.pos.start_line,
-    //                                 get.name.pos.start_pos,
-    //                                 None
-    //                             );
-    //                         }
-    //                     }
-
-    //                     _ => unreachable!()
-    //                 }
-    //             }
-    //         }
-    //         ExpressionKind::Get(g) => {
-    //             let get_parts = self.symtable.get_to_list(*g.clone(), &mut self.clone());
-    //             let mut obj = self.symtable.current().unwrap().find(get_parts[0].0.clone()).unwrap().kind;
-
-    //             for i in 0..get_parts.len() {
-    //                 let get_name: String;
-    //                 let is_call: bool;
-    //                 if i == get_parts.len() - 1 {
-    //                     break;
-    //                 } else {
-    //                     get_name = get_parts[i + 1].0.clone();
-    //                     is_call = get_parts[i + 1].1;
-    //                 }
-
-    //                 match obj.clone() {
-    //                     SymbolKind::Constant(c) | SymbolKind::Variable(c) => {
-    //                         let t = c.type_.clone();
-    //                         if t.is_primitive() {
-    //                             if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
-    //                                 obj = t.get_name(get_name.clone());
-    //                                 break;
-    //                             } else {
-    //                                 self.fatal(
-    //                                     format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
-    //                                     get.name.pos.start_line,
-    //                                     get.name.pos.start_pos,
-    //                                     None
-    //                                 );
-    //                             }
-    //                         } else {
-    //                             let ty = c.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
-    //                             let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
-
-    //                             if x.is_some() {
-    //                                 let t = x.unwrap();
-    //                                 let mut found = false;
-    //                                 match t.kind {
-    //                                     SymbolKind::Struct(s) => {
-    //                                         if is_call {
-    //                                             for m in &s.methods {
-    //                                                 let name = match &m.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-    //                                                 if name == get_name {
-    //                                                     obj = SymbolKind::Method(m.clone());
-    //                                                     found = true;
-    //                                                     break;
-    //                                                 }
-    //                                             }
-    //                                         } else {
-    //                                             for f in &s.fields {
-    //                                                 let name = match &f.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-    //                                                 if name == get_name {
-    //                                                     obj = SymbolKind::Variable(f.clone());
-    //                                                     found = true;
-    //                                                     break;
-    //                                                 }
-    //                                             }
-    //                                         }
-
-    //                                         if found { continue }
-    //                                         self.fatal(
-    //                                             format!("Name '{}' does not exist in field of type {}.", get_name, ty.to_string()).as_str(),
-    //                                             get.name.pos.start_line,
-    //                                             get.name.pos.start_pos,
-    //                                             None
-    //                                         );
-    //                                     }
-    //                                     SymbolKind::Enum(e) => {
-    //                                         if is_call {
-    //                                             for m in &e.methods {
-    //                                                 let name = match &m.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-    //                                                 if name == get_name {
-    //                                                     obj = SymbolKind::Method(m.clone());
-    //                                                     found = true;
-    //                                                     break;
-    //                                                 }
-    //                                             }
-    //                                         } else {
-    //                                             for v in &e.variants {
-    //                                                 let name = match &v.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-    //                                                 if name == get_name {
-    //                                                     obj = SymbolKind::Constant(v.clone());
-    //                                                     found = true;
-    //                                                     break;
-    //                                                 }
-    //                                             }
-    //                                         }
-
-    //                                         if found { continue }
-    //                                         self.fatal(
-    //                                             format!("Name '{}' does not exist in field of type {}.", get_name, ty.to_string()).as_str(),
-    //                                             get.name.pos.start_line,
-    //                                             get.name.pos.start_pos,
-    //                                             None
-    //                                         );
-    //                                     }
-    //                                     _ => unreachable!()
-    //                                 }
-    //                             }
-    //                         }
-    //                     }
-    //                     SymbolKind::Method(f) => {
-    //                         let t = f.type_.clone();
-    //                         if t.is_primitive() {
-    //                             if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
-    //                                 obj = t.get_name(get_name.clone());
-    //                                 break;
-    //                             } else {
-    //                                 self.fatal(
-    //                                     format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
-    //                                     get.name.pos.start_line,
-    //                                     get.name.pos.start_pos,
-    //                                     None
-    //                                 );
-    //                             }
-    //                         } else {
-    //                             let ty = f.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
-    //                             let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
-
-    //                             if x.is_some() {
-    //                                 let t = x.unwrap();
-    //                                 let mut found = false;
-    //                                 match t.kind {
-    //                                     SymbolKind::Struct(s) => {
-    //                                         if is_call {
-    //                                             for m in &s.methods {
-    //                                                 let name = match &m.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-    //                                                 if name == get_name {
-    //                                                     obj = SymbolKind::Method(m.clone());
-    //                                                     found = true;
-    //                                                     break;
-    //                                                 }
-    //                                             }
-    //                                         } else {
-    //                                             for f in &s.fields {
-    //                                                 let name = match &f.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-    //                                                 if name == get_name {
-    //                                                     obj = SymbolKind::Variable(f.clone());
-    //                                                     found = true;
-    //                                                     break;
-    //                                                 }
-    //                                             }
-    //                                         }
-
-    //                                         if found { continue }
-    //                                         self.fatal(
-    //                                             format!("Name '{}' does not exist in field of type {}.", get_name, ty.to_string()).as_str(),
-    //                                             get.name.pos.start_line,
-    //                                             get.name.pos.start_pos,
-    //                                             None
-    //                                         );
-    //                                     }
-    //                                     SymbolKind::Enum(e) => {
-    //                                         if is_call {
-    //                                             for m in &e.methods {
-    //                                                 let name = match &m.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-    //                                                 if name == get_name {
-    //                                                     obj = SymbolKind::Method(m.clone());
-    //                                                     found = true;
-    //                                                     break;
-    //                                                 }
-    //                                             }
-    //                                         } else {
-    //                                             for v in &e.variants {
-    //                                                 let name = match &v.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-    //                                                 if name == get_name {
-    //                                                     obj = SymbolKind::Constant(v.clone());
-    //                                                     found = true;
-    //                                                     break;
-    //                                                 }
-    //                                             }
-    //                                         }
-
-    //                                         if found { continue }
-    //                                         self.fatal(
-    //                                             format!("Name '{}' does not exist in field of type {}.", get_name, ty.to_string()).as_str(),
-    //                                             get.name.pos.start_line,
-    //                                             get.name.pos.start_pos,
-    //                                             None
-    //                                         );
-    //                                     }
-    //                                     _ => unreachable!()
-    //                                 }
-    //                             }
-    //                         }
-    //                     }
-    //                     SymbolKind::Struct(s) => {
-    //                         let mut found = false;
-
-    //                         if is_call {
-    //                             for m in &s.methods {
-    //                                 let name = match &m.name.kind {
-    //                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                     _ => unreachable!()
-    //                                 };
-    //                                 if name == get_name && m.type_.modifiers.is_static {
-    //                                     obj = SymbolKind::Method(m.clone());
-    //                                     found = true;
-    //                                     break;
-    //                                 }
-    //                             }
-    //                         } else {
-    //                             for f in &s.fields {
-    //                                 let name = match &f.name.kind {
-    //                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                     _ => unreachable!()
-    //                                 };
-    //                                 if name == get_name && f.type_.modifiers.is_static {
-    //                                     obj = SymbolKind::Variable(f.clone());
-    //                                     found = true;
-    //                                     break;
-    //                                 }
-    //                             }
-    //                         }
-
-    //                         if found { continue }
-    //                         self.fatal(
-    //                             format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
-    //                             get.name.pos.start_line,
-    //                             get.name.pos.start_pos,
-    //                             None
-    //                         );
-    //                     }
-    //                     SymbolKind::Enum(e) => {
-    //                         let mut found = false;
-    //                         if is_call {
-    //                             for m in &e.methods {
-    //                                 let name = match &m.name.kind {
-    //                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                     _ => unreachable!()
-    //                                 };
-    //                                 if name == get_name {
-    //                                     obj = SymbolKind::Method(m.clone());
-    //                                     found = true;
-    //                                     break;
-    //                                 }
-    //                             }
-    //                         } else {
-    //                             for v in &e.variants {
-    //                                 let name = match &v.name.kind {
-    //                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                     _ => unreachable!()
-    //                                 };
-    //                                 if name == get_name {
-    //                                     obj = SymbolKind::Constant(v.clone());
-    //                                     found = true;
-    //                                     break;
-    //                                 }
-    //                             }
-    //                         }
-
-    //                         if found { continue }
-    //                         self.fatal(
-    //                             format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
-    //                             get.name.pos.start_line,
-    //                             get.name.pos.start_pos,
-    //                             None
-    //                         );
-    //                     }
-    //                     SymbolKind::Type(t) => {
-    //                         // TODO: implement static methods
-    //                         if t.is_primitive() {
-    //                             if t.contains_name(get_name.clone()) {
-    //                                 obj = t.get_name(get_name.clone());
-    //                             } else {
-    //                                 self.error(
-    //                                     format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
-    //                                     get.name.pos.start_line,
-    //                                     get.name.pos.start_pos,
-    //                                     None
-    //                                 );
-    //                             }
-    //                         } else {
-    //                             let ty = t.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
-    //                             let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
-    //                             if x.is_some() {
-    //                                 let t_ = x.unwrap();
-    //                                 let mut found = false;
-
-    //                                 match t_.kind {
-    //                                     SymbolKind::Struct(s) => {
-    //                                         if is_call {
-    //                                             for m in &s.methods {
-    //                                                 let name = match &m.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-    //                                                 if name == get_name {
-    //                                                     obj = SymbolKind::Method(m.clone());
-    //                                                     found = true;
-    //                                                     break;
-    //                                                 }
-    //                                             }
-    //                                         } else {
-    //                                             for f in &s.fields {
-    //                                                 let name = match &f.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-    //                                                 if name == get_name {
-    //                                                     obj = SymbolKind::Variable(f.clone());
-    //                                                     found = true;
-    //                                                     break;
-    //                                                 }
-    //                                             }
-    //                                         }
-
-    //                                         if found { continue }
-    //                                         self.fatal(
-    //                                             format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
-    //                                             get.name.pos.start_line,
-    //                                             get.name.pos.start_pos,
-    //                                             None
-    //                                         );
-    //                                     }
-    //                                     SymbolKind::Enum(e) => {
-    //                                         if is_call {
-    //                                             for m in &e.methods {
-    //                                                 let name = match &m.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-    //                                                 if name == get_name {
-    //                                                     obj = SymbolKind::Method(m.clone());
-    //                                                     found = true;
-    //                                                     break;
-    //                                                 }
-    //                                             }
-    //                                         } else {
-    //                                             for v in &e.variants {
-    //                                                 let name = match &v.name.kind {
-    //                                                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                     _ => unreachable!()
-    //                                                 };
-    //                                                 if name == get_name {
-    //                                                     obj = SymbolKind::Constant(v.clone());
-    //                                                     found = true;
-    //                                                     break;
-    //                                                 }
-    //                                             }
-    //                                         }
-
-    //                                         if found { continue }
-    //                                         self.fatal(
-    //                                             format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
-    //                                             get.name.pos.start_line,
-    //                                             get.name.pos.start_pos,
-    //                                             None
-    //                                         );
-    //                                     }
-    //                                     _ => unreachable!()
-    //                                 }
-    //                             }
-    //                         }
-    //                     }
-    //                     _ => { unreachable!() }
-    //                 }
-    //             }
-
-    //             last = Some(obj);
-    //         }
-    //         ExpressionKind::Call(c) => {
-    //             c.accept(self);
-    //         }
-    //         ExpressionKind::StructInit(s) => {
-    //             s.accept(self);
-    //         }
-    //         _ => {}
-    //     }
-
-    //     // TODO: Implement StructInit
-    //     // TODO: Static Attributes
-    //     // TODO: Index, Set.
-    //     // Last = p, next it should go to a call and then another get.
-    //     if last.is_some() {
-    //         match get.name.kind.clone() {
-    //             ExpressionKind::Identifier(id) => {
-    //                 let get_name = id.name.lexeme.clone();
-    //                 match &last.unwrap() {
-    //                     SymbolKind::Constant(c) | SymbolKind::Variable(c) => {
-    //                         let t = c.type_.clone();
-    //                         if t.is_primitive() {
-    //                             if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
-    //                                 return TypeOption::None;
-    //                             } else {
-    //                                 self.fatal(
-    //                                     format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
-    //                                     get.name.pos.start_line,
-    //                                     get.name.pos.start_pos,
-    //                                     None
-    //                                 );
-    //                             }
-    //                         } else {
-    //                             let ty = c.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
-    //                             let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
-
-    //                             if x.is_some() {
-    //                                 let t = x.unwrap();
-    //                                 let found = false;
-    //                                 match t.kind {
-    //                                     SymbolKind::Struct(s) => {
-    //                                         for m in &s.methods {
-    //                                             let name = match &m.name.kind {
-    //                                                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                 _ => unreachable!()
-    //                                             };
-    //                                             if name == get_name {
-    //                                                 return TypeOption::None;
-    //                                             }
-    //                                         }
-    //                                         for f in &s.fields {
-    //                                             let name = match &f.name.kind {
-    //                                                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                 _ => unreachable!()
-    //                                             };
-    //                                             if name == get_name {
-    //                                                 return TypeOption::None;
-    //                                             }
-    //                                         }
-
-    //                                         if found { return TypeOption::None }
-    //                                         self.fatal(
-    //                                             format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
-    //                                             get.name.pos.start_line,
-    //                                             get.name.pos.start_pos,
-    //                                             None
-    //                                         );
-    //                                     }
-    //                                     SymbolKind::Enum(e) => {
-    //                                         for m in &e.methods {
-    //                                             let name = match &m.name.kind {
-    //                                                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                 _ => unreachable!()
-    //                                             };
-    //                                             if name == get_name {
-    //                                                 return TypeOption::None;
-    //                                             }
-    //                                         }
-    //                                         for v in &e.variants {
-    //                                             let name = match &v.name.kind {
-    //                                                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                 _ => unreachable!()
-    //                                             };
-    //                                             if name == get_name {
-    //                                                 return TypeOption::None;
-    //                                             }
-    //                                         }
-    //                                     }
-    //                                     _ => {
-    //                                         unreachable!()
-    //                                     }
-    //                                 }
-    //                             }
-    //                         }
-    //                     }
-    //                     SymbolKind::Method(f) => {
-    //                         let t = f.type_.clone();
-    //                         if t.is_primitive() {
-    //                             if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
-    //                                 return TypeOption::None;
-    //                             } else {
-    //                                 self.fatal(
-    //                                     format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
-    //                                     get.name.pos.start_line,
-    //                                     get.name.pos.start_pos,
-    //                                     None
-    //                                 );
-    //                             }
-    //                         } else {
-    //                             let ty = f.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
-    //                             let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
-
-    //                             if x.is_some() {
-    //                                 let t = x.unwrap();
-    //                                 let found = false;
-    //                                 match t.kind {
-    //                                     SymbolKind::Struct(s) => {
-    //                                         for m in &s.methods {
-    //                                             let name = match &m.name.kind {
-    //                                                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                 _ => unreachable!()
-    //                                             };
-    //                                             if name == get_name {
-    //                                                 return TypeOption::None;
-    //                                             }
-    //                                         }
-    //                                         for f in &s.fields {
-    //                                             let name = match &f.name.kind {
-    //                                                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                 _ => unreachable!()
-    //                                             };
-    //                                             if name == get_name {
-    //                                                 return TypeOption::None;
-    //                                             }
-    //                                         }
-
-    //                                         if found { return TypeOption::None }
-    //                                         self.fatal(
-    //                                             format!("Name '{}' does not exist in field of type {}.", get_name, ty.to_string()).as_str(),
-    //                                             get.name.pos.start_line,
-    //                                             get.name.pos.start_pos,
-    //                                             None
-    //                                         );
-    //                                     }
-    //                                     SymbolKind::Enum(e) => {
-    //                                         for m in &e.methods {
-    //                                             let name = match &m.name.kind {
-    //                                                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                 _ => unreachable!()
-    //                                             };
-    //                                             if name == get_name {
-    //                                                 return TypeOption::None;
-    //                                             }
-    //                                         }
-    //                                         for v in &e.variants {
-    //                                             let name = match &v.name.kind {
-    //                                                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                 _ => unreachable!()
-    //                                             };
-    //                                             if name == get_name {
-    //                                                 return TypeOption::None;
-    //                                             }
-    //                                         }
-
-    //                                         if found { return TypeOption::None }
-    //                                         self.fatal(
-    //                                             format!("Name '{}' does not exist in field of type {}.", get_name, ty.to_string()).as_str(),
-    //                                             get.name.pos.start_line,
-    //                                             get.name.pos.start_pos,
-    //                                             None
-    //                                         );
-    //                                     }
-    //                                     _ => unreachable!()
-    //                                 }
-    //                             }
-    //                         }
-    //                     }
-    //                     SymbolKind::Struct(s) => {
-    //                         for m in &s.methods {
-    //                             let name = match &m.name.kind {
-    //                                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                 _ => unreachable!()
-    //                             };
-    //                             if name == get_name && m.type_.modifiers.is_static {
-    //                                 return TypeOption::None;
-    //                             }
-    //                         }
-    //                         for f in &s.fields {
-    //                             let name = match &f.name.kind {
-    //                                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                 _ => unreachable!()
-    //                             };
-    //                             if name == get_name && f.type_.modifiers.is_static {
-    //                                 return TypeOption::None;
-    //                             }
-    //                         }
-
-    //                         self.fatal(
-    //                             format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
-    //                             get.name.pos.start_line,
-    //                             get.name.pos.start_pos,
-    //                             None
-    //                         );
-    //                     }
-    //                     SymbolKind::Enum(e) => {
-    //                         let found = false;
-    //                         for v in &e.variants {
-    //                             let name = match &v.name.kind {
-    //                                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                 _ => unreachable!()
-    //                             };
-    //                             if name == get_name {
-    //                                 return TypeOption::None;
-    //                             }
-    //                         }
-    //                         for m in &e.methods {
-    //                             let name = match &m.name.kind {
-    //                                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                 _ => unreachable!()
-    //                             };
-    //                             if name == get_name {
-    //                                 return TypeOption::None;
-    //                             }
-    //                         }
-
-    //                         if found { return TypeOption::None }
-    //                         self.fatal(
-    //                             format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
-    //                             get.name.pos.start_line,
-    //                             get.name.pos.start_pos,
-    //                             None
-    //                         );
-    //                     }
-    //                     SymbolKind::Type(t) => {
-    //                         if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
-    //                             return TypeOption::None;
-    //                         } else {
-    //                             self.fatal(
-    //                                 format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
-    //                                 get.name.pos.start_line,
-    //                                 get.name.pos.start_pos,
-    //                                 None
-    //                             );
-    //                         }
-    //                     }
-    //                     _ => unreachable!()
-    //                 }
-    //             }
-    //             ExpressionKind::Call(c) => {
-    //                 c.accept(self);
-    //                 let get_name = match c.callee.kind {
-    //                     ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                     _ => unreachable!()
-    //                 };
-
-    //                 match &last.unwrap() {
-    //                     SymbolKind::Constant(c) | SymbolKind::Variable(c) => {
-    //                         let t = c.type_.clone();
-    //                         if t.is_primitive() {
-    //                             if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
-    //                                 return TypeOption::None;
-    //                             } else {
-    //                                 self.fatal(
-    //                                     format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
-    //                                     get.name.pos.start_line,
-    //                                     get.name.pos.start_pos,
-    //                                     None
-    //                                 );
-    //                             }
-    //                         } else {
-    //                             let ty = c.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
-    //                             let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
-
-    //                             if x.is_some() {
-    //                                 let t = x.unwrap();
-    //                                 match t.kind {
-    //                                     SymbolKind::Struct(s) => {
-    //                                         for m in &s.methods {
-    //                                             let name = match &m.name.kind {
-    //                                                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                 _ => unreachable!()
-    //                                             };
-    //                                             if name == get_name {
-    //                                                 return TypeOption::None;
-    //                                             }
-    //                                         }
-
-    //                                         self.fatal(
-    //                                             format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
-    //                                             get.name.pos.start_line,
-    //                                             get.name.pos.start_pos,
-    //                                             None
-    //                                         );
-    //                                     }
-    //                                     SymbolKind::Enum(e) => {
-    //                                         for m in &e.methods {
-    //                                             let name = match &m.name.kind {
-    //                                                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                 _ => unreachable!()
-    //                                             };
-    //                                             if name == get_name {
-    //                                                 return TypeOption::None;
-    //                                             }
-    //                                         }
-                            
-    //                                         self.fatal(
-    //                                             format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
-    //                                             get.name.pos.start_line,
-    //                                             get.name.pos.start_pos,
-    //                                             None
-    //                                         );
-    //                                     }
-    //                                     _ => {
-    //                                         unreachable!()
-    //                                     }
-    //                                 }
-    //                             }
-    //                         }
-    //                     }
-    //                     SymbolKind::Method(f) => {
-    //                         let t = f.type_.clone();
-    //                         if t.is_primitive() {
-    //                             if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
-    //                                 return TypeOption::None;
-    //                             } else {
-    //                                 self.fatal(
-    //                                     format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
-    //                                     get.name.pos.start_line,
-    //                                     get.name.pos.start_pos,
-    //                                     None
-    //                                 );
-    //                             }
-    //                         } else {
-    //                             let ty = f.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
-    //                             let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
-
-    //                             if x.is_some() {
-    //                                 let t = x.unwrap();
-    //                                 match t.kind {
-    //                                     SymbolKind::Struct(s) => {
-    //                                         for m in &s.methods {
-    //                                             let name = match &m.name.kind {
-    //                                                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                 _ => unreachable!()
-    //                                             };
-    //                                             if name == get_name {
-    //                                                 return TypeOption::None;
-    //                                             }
-    //                                         }
-
-    //                                         self.fatal(
-    //                                             format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
-    //                                             get.name.pos.start_line,
-    //                                             get.name.pos.start_pos,
-    //                                             None
-    //                                         );
-    //                                     }
-    //                                     SymbolKind::Enum(e) => {
-    //                                         for m in &e.methods {
-    //                                             let name = match &m.name.kind {
-    //                                                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                 _ => unreachable!()
-    //                                             };
-    //                                             if name == get_name {
-    //                                                 return TypeOption::None;
-    //                                             }
-    //                                         }
-                            
-    //                                         self.fatal(
-    //                                             format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
-    //                                             get.name.pos.start_line,
-    //                                             get.name.pos.start_pos,
-    //                                             None
-    //                                         );
-    //                                     }
-    //                                     _ => {
-    //                                         unreachable!()
-    //                                     }
-    //                                 }
-    //                             }
-    //                         }
-    //                     }
-    //                     SymbolKind::Struct(s) => {
-    //                         for m in &s.methods {
-    //                             let name = match &m.name.kind {
-    //                                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                 _ => unreachable!()
-    //                             };
-    //                             if name == get_name && m.type_.modifiers.is_static {
-    //                                 return TypeOption::None;
-    //                             }
-    //                         }
-
-    //                         self.fatal(
-    //                             format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
-    //                             get.name.pos.start_line,
-    //                             get.name.pos.start_pos,
-    //                             None
-    //                         );
-    //                     }
-    //                     SymbolKind::Enum(e) => {
-    //                         for m in &e.methods {
-    //                             let name = match &m.name.kind {
-    //                                 ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                 _ => unreachable!()
-    //                             };
-    //                             if name == get_name {
-    //                                 return TypeOption::None;
-    //                             }
-    //                         }
-
-    //                         self.fatal(
-    //                             format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
-    //                             get.name.pos.start_line,
-    //                             get.name.pos.start_pos,
-    //                             None
-    //                         );
-    //                     }
-    //                     SymbolKind::Type(t) => {
-    //                         if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
-    //                             return TypeOption::None;
-    //                         } else {
-    //                             self.fatal(
-    //                                 format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
-    //                                 get.name.pos.start_line,
-    //                                 get.name.pos.start_pos,
-    //                                 None
-    //                             );
-    //                         }
-    //                     }
-    //                     _ => unreachable!()
-    //                 }
-    //             }
-    //             ExpressionKind::Get(g) => {
-    //                 let get_parts = self.symtable.get_to_list(*g.clone(), &mut self.clone());
-    //                 let mut obj = last.unwrap();
-
-    //                 for i in 0..get_parts.len() {
-    //                     let get_name: String;
-    //                     let is_call: bool;
-
-    //                     // if i == get_parts.len() - 1 || i == 0 {
-    //                     //     println!("i: {}", i);
-    //                     //     println!("get_parts: {:?}", get_parts);
-    //                     //     println!("get_parts[i]: {:?}", get_parts[i]);
-    //                     //     println!("{:?}", obj);
-    //                     //     get_name = get_parts[i].0.clone();
-    //                     //     is_call = get_parts[i].1;
-    //                     // } else if i > 0 {
-    //                     //     println!("i: {}", i);
-    //                     //     println!("get_parts: {:?}", get_parts);
-    //                     //     println!("get_parts[i+1]: {:?}", get_parts[i+1]);
-    //                     //     println!("{:?}", obj);
-    //                     //     get_name = get_parts[i + 1].0.clone();
-    //                     //     is_call = get_parts[i + 1].1;
-    //                     // } else {
-    //                     //     get_name = get_parts[i].0.clone();
-    //                     //     is_call = get_parts[i].1;
-    //                     // }
-
-    //                     get_name = get_parts[i].0.clone();
-    //                     is_call = get_parts[i].1;
-
-    //                     match obj.clone() {
-    //                         SymbolKind::Constant(c) | SymbolKind::Variable(c) => {
-    //                             let t = c.type_.clone();
-    //                             if t.is_primitive() {
-    //                                 if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
-    //                                     // obj = t.get_name(get_name.clone());
-    //                                     break;
-    //                                 } else {
-    //                                     self.fatal(
-    //                                         format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
-    //                                         get.name.pos.start_line,
-    //                                         get.name.pos.start_pos,
-    //                                         None
-    //                                     );
-    //                                 }
-    //                             } else {
-    //                                 let ty = c.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
-    //                                 let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
-
-    //                                 if x.is_some() {
-    //                                     let t = x.unwrap();
-    //                                     let mut found = false;
-    //                                     match t.kind {
-    //                                         SymbolKind::Struct(s) => {
-    //                                             if is_call {
-    //                                                 for m in &s.methods {
-    //                                                     let name = match &m.name.kind {
-    //                                                         ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                         _ => unreachable!()
-    //                                                     };
-    //                                                     if name == get_name {
-    //                                                         obj = SymbolKind::Method(m.clone());
-    //                                                         found = true;
-    //                                                         break;
-    //                                                     }
-    //                                                 }
-    //                                             } else {
-    //                                                 for f in &s.fields {
-    //                                                     let name = match &f.name.kind {
-    //                                                         ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                         _ => unreachable!()
-    //                                                     };
-    //                                                     if name == get_name {
-    //                                                         obj = SymbolKind::Variable(f.clone());
-    //                                                         found = true;
-    //                                                         break;
-    //                                                     }
-    //                                                 }
-    //                                             }
-
-    //                                             if found { continue }
-    //                                             self.fatal(
-    //                                                 format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
-    //                                                 get.name.pos.start_line,
-    //                                                 get.name.pos.start_pos,
-    //                                                 None
-    //                                             );
-    //                                         }
-    //                                         SymbolKind::Enum(e) => {
-    //                                             if is_call {
-    //                                                 for m in &e.methods {
-    //                                                     let name = match &m.name.kind {
-    //                                                         ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                         _ => unreachable!()
-    //                                                     };
-    //                                                     if name == get_name {
-    //                                                         obj = SymbolKind::Method(m.clone());
-    //                                                         found = true;
-    //                                                         break;
-    //                                                     }
-    //                                                 }
-    //                                             } else {
-    //                                                 for v in &e.variants {
-    //                                                     let name = match &v.name.kind {
-    //                                                         ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                         _ => unreachable!()
-    //                                                     };
-    //                                                     if name == get_name {
-    //                                                         obj = SymbolKind::Constant(v.clone());
-    //                                                         found = true;
-    //                                                         break;
-    //                                                     }
-    //                                                 }
-    //                                             }
-
-    //                                             if found { continue }
-    //                                             self.fatal(
-    //                                                 format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
-    //                                                 get.name.pos.start_line,
-    //                                                 get.name.pos.start_pos,
-    //                                                 None
-    //                                             );
-    //                                         }
-    //                                         _ => unreachable!()
-    //                                     }
-    //                                 }
-    //                             }
-    //                         }
-    //                         SymbolKind::Method(f) => {
-    //                             let t = f.type_.clone();
-    //                             if t.is_primitive() {
-    //                                 if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
-    //                                     // obj = t.get_name(get_name.clone());
-    //                                     break;
-    //                                 } else {
-    //                                     self.fatal(
-    //                                         format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
-    //                                         get.name.pos.start_line,
-    //                                         get.name.pos.start_pos,
-    //                                         None
-    //                                     );
-    //                                 }
-    //                             } else {
-    //                                 let ty = f.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
-    //                                 let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
-
-    //                                 if x.is_some() {
-    //                                     let t = x.unwrap();
-    //                                     let mut found = false;
-    //                                     match t.kind {
-    //                                         SymbolKind::Struct(s) => {
-    //                                             if is_call {
-    //                                                 for m in &s.methods {
-    //                                                     let name = match &m.name.kind {
-    //                                                         ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                         _ => unreachable!()
-    //                                                     };
-    //                                                     if name == get_name {
-    //                                                         obj = SymbolKind::Method(m.clone());
-    //                                                         found = true;
-    //                                                         break;
-    //                                                     }
-    //                                                 }
-    //                                             } else {
-    //                                                 for f in &s.fields {
-    //                                                     let name = match &f.name.kind {
-    //                                                         ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                         _ => unreachable!()
-    //                                                     };
-    //                                                     if name == get_name {
-    //                                                         obj = SymbolKind::Variable(f.clone());
-    //                                                         found = true;
-    //                                                         break;
-    //                                                     }
-    //                                                 }
-    //                                             }
-
-    //                                             if found { continue }
-    //                                             self.fatal(
-    //                                                 format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
-    //                                                 get.name.pos.start_line,
-    //                                                 get.name.pos.start_pos,
-    //                                                 None
-    //                                             );
-    //                                         }
-    //                                         SymbolKind::Enum(e) => {
-    //                                             if is_call {
-    //                                                 for m in &e.methods {
-    //                                                     let name = match &m.name.kind {
-    //                                                         ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                         _ => unreachable!()
-    //                                                     };
-    //                                                     if name == get_name {
-    //                                                         obj = SymbolKind::Method(m.clone());
-    //                                                         found = true;
-    //                                                         break;
-    //                                                     }
-    //                                                 }
-    //                                             } else {
-    //                                                 for v in &e.variants {
-    //                                                     let name = match &v.name.kind {
-    //                                                         ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                                         _ => unreachable!()
-    //                                                     };
-    //                                                     if name == get_name {
-    //                                                         obj = SymbolKind::Constant(v.clone());
-    //                                                         found = true;
-    //                                                         break;
-    //                                                     }
-    //                                                 }
-    //                                             }
-
-    //                                             if found { continue }
-    //                                             self.fatal(
-    //                                                 format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
-    //                                                 get.name.pos.start_line,
-    //                                                 get.name.pos.start_pos,
-    //                                                 None
-    //                                             );
-    //                                         }
-    //                                         _ => unreachable!()
-    //                                     }
-    //                                 }
-    //                             }
-    //                         }
-    //                         SymbolKind::Struct(s) => {
-    //                             let mut found = false;
-
-    //                             if is_call {
-    //                                 for m in &s.methods {
-    //                                     let name = match &m.name.kind {
-    //                                         ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                         _ => unreachable!()
-    //                                     };
-    //                                     if name == get_name && m.type_.modifiers.is_static {
-    //                                         obj = SymbolKind::Method(m.clone());
-    //                                         found = true;
-    //                                         break;
-    //                                     }
-    //                                 }
-    //                             } else {
-    //                                 for f in &s.fields {
-    //                                     let name = match &f.name.kind {
-    //                                         ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                         _ => unreachable!()
-    //                                     };
-    //                                     if name == get_name && f.type_.modifiers.is_static {
-    //                                         obj = SymbolKind::Variable(f.clone());
-    //                                         found = true;
-    //                                         break;
-    //                                     }
-    //                                 }
-    //                             }
-
-    //                             if found { continue }
-    //                             self.fatal(
-    //                                 format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
-    //                                 get.name.pos.start_line,
-    //                                 get.name.pos.start_pos,
-    //                                 None
-    //                             );
-    //                         }
-    //                         SymbolKind::Enum(e) => {
-    //                             let mut found = false;
-    //                             if is_call {
-    //                                 for m in &e.methods {
-    //                                     let name = match &m.name.kind {
-    //                                         ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                         _ => unreachable!()
-    //                                     };
-    //                                     if name == get_name {
-    //                                         obj = SymbolKind::Method(m.clone());
-    //                                         found = true;
-    //                                         break;
-    //                                     }
-    //                                 }
-    //                             } else {
-    //                                 for v in &e.variants {
-    //                                     let name = match &v.name.kind {
-    //                                         ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
-    //                                         _ => unreachable!()
-    //                                     };
-    //                                     if name == get_name {
-    //                                         obj = SymbolKind::Constant(v.clone());
-    //                                         found = true;
-    //                                         break;
-    //                                     }
-    //                                 }
-
-    //                                 if found { continue }
-    //                                 self.fatal(
-    //                                     format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
-    //                                     get.name.pos.start_line,
-    //                                     get.name.pos.start_pos,
-    //                                     None
-    //                                 );
-    //                             }
-
-    //                             if found { continue }
-    //                             self.fatal(
-    //                                 format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
-    //                                 get.name.pos.start_line,
-    //                                 get.name.pos.start_pos,
-    //                                 None
-    //                             );
-    //                         }
-    //                         SymbolKind::Type(t) => {
-    //                             if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
-    //                                 return TypeOption::None;
-    //                             } else {
-    //                                 self.fatal(
-    //                                     format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
-    //                                     get.name.pos.start_line,
-    //                                     get.name.pos.start_pos,
-    //                                     None
-    //                                 );
-    //                             }
-    //                         }
-    //                         _ => unreachable!()
-    //                     }
-    //                 }
-    //             }
-    //             _ => unreachable!()
-    //         }
-    //     }
-
-    //     TypeOption::None
-    // }
-
     fn visit_get(&mut self, get: &Get) -> TypeOption {
-        let mut current_object = &get.object;
-        let mut get_name_info = self.resolve_get_name_info(&get.name.kind);
-    
-        loop {
-            match &current_object.kind {
-                ExpressionKind::Identifier(id) => {
-                    if !self.is_defined_or_module(id) {
-                        self.suggest_and_error(&id.name.lexeme, id.name.line, id.name.pos);
-                        return TypeOption::None;
+        let object_name = match &get.object.kind {
+            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+            ExpressionKind::StructInit(s) => {
+                s.name.lexeme.clone()
+            }
+            ExpressionKind::Call(c) => {
+                c.accept(self);
+                match &c.callee.kind {
+                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                    _ => unreachable!()
+                }
+            }
+            ExpressionKind::Get(g) => {
+                let get_parts = self.symtable.get_to_list(*g.clone(), &mut self.clone());
+                get_parts[0].0.clone()
+            }
+            _ => {
+                return TypeOption::None // TODO: check for other expressions.
+            }
+        };
+
+        let mut is_call: bool = false;
+
+        let get_name = match &get.name.kind {
+            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+            ExpressionKind::StructInit(s) => {
+                s.name.lexeme.clone()
+            }
+            ExpressionKind::Call(c) => {
+                is_call = true;
+
+                match &c.callee.kind {
+                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                    _ => unreachable!()
+                }
+            }
+            ExpressionKind::Get(g) => {
+                let get_parts = self.symtable.get_to_list(*g.clone(), &mut self.clone());
+                is_call = get_parts[0].1.clone();
+                get_parts[0].0.clone()
+            }
+            _ => {
+                return TypeOption::None // TODO: check for other expressions
+            }
+        };
+
+
+        let x = self.symtable.current().unwrap().get_module(object_name.clone());
+
+        if let Some(m) = x {
+            let mut found = false;
+
+            for sym in m.exported_symbols.clone() {
+                match sym.kind {
+                    SymbolKind::Constant(c) => {
+                        let name = match &c.name.kind {
+                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                            _ => unreachable!()
+                        };
+                        if name == get_name {
+                            found = true;
+                        }
+                    },
+                    SymbolKind::Function(f) => {
+                        let name = match &f.name.kind {
+                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                            _ => unreachable!()
+                        };
+                        if name == get_name {
+                            found = true;
+                        }
+                    },
+                    SymbolKind::Struct(s) => {
+                        let name = match &s.name.kind {
+                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                            _ => unreachable!()
+                        };
+                        if name == get_name {
+                            found = true;
+                        }
+                    },
+                    SymbolKind::Enum(e) => {
+                        let name = match &e.name.kind {
+                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                            _ => unreachable!()
+                        };
+                        if name == get_name {
+                            found = true;
+                        }
+                    },
+                    _ => {}
+                }
+            }
+
+            if !found {
+                let x = m.suggest(get_name.clone());
+
+                if x.is_some() {
+                    self.fatal(
+                        format!("Name '{}' does not exist in module '{}'.", get_name, object_name).as_str(),
+                        get.name.pos.start_line,
+                        get.name.pos.start_pos,
+                        Some(vec![format!("Did you mean {}?", x.unwrap())])
+                    );
+                } else {
+                    self.fatal(
+                        format!("Name '{}' does not exist in module '{}'.", get_name, object_name).as_str(),
+                        get.name.pos.start_line,
+                        get.name.pos.start_pos,
+                        None
+                    );
+                }
+            }
+
+            return TypeOption::None;
+        }
+
+        let mut last: Option<SymbolKind> = None;
+
+        match &get.object.kind {
+            ExpressionKind::Identifier(id) => {
+                if !(self.symtable.current_mut().lookup(id.name.lexeme.clone()) || self.symtable.current().unwrap().get_module(id.name.lexeme.clone()).is_some()) {
+                    let x = self.symtable.suggest(id.name.lexeme.clone());
+
+                    if x.is_some() {
+                        self.error(
+                            format!("Undefined name '{}'", id.name.lexeme).as_str(),
+                            id.name.line,
+                            id.name.pos,
+                            Some(vec![format!("Did you mean {}?", x.unwrap())])
+                        );
                     } else {
-                        self.process_symbol(&id.name.lexeme, &get_name_info);
+                        self.error(
+                            format!("Undefined name '{}'", id.name.lexeme).as_str(),
+                            id.name.line,
+                            id.name.pos,
+                            None
+                        );
+                    }
+                } else {
+                    let sym = self.symtable.current().unwrap().find(id.name.lexeme.clone()).unwrap();
+                    match sym.kind {
+                        SymbolKind::Constant(ref v) | SymbolKind::Variable(ref v) => {
+                            let t = v.type_.clone();
+                            if t.is_primitive() {
+                                if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
+                                    return TypeOption::None;
+                                } else {
+                                    self.fatal(
+                                        format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
+                                        get.name.pos.start_line,
+                                        get.name.pos.start_pos,
+                                        None
+                                    );
+                                }
+                            } else {
+                                let ty = v.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
+                                let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
+
+                                if x.is_some() {
+                                    let t = x.unwrap();
+                                    let mut found = false;
+                                    match t.kind {
+                                        SymbolKind::Struct(s) => {
+                                            if is_call {
+                                                for m in &s.methods {
+                                                    let name = match &m.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+
+                                                    if name == get_name {
+                                                        found = true;
+                                                        last = Some(SymbolKind::Method(m.clone()));
+                                                        break;
+                                                    }
+                                                }
+                                            } else {
+                                                for f in &s.fields {
+                                                    let name = match &f.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+                                                    if name == get_name {
+                                                        found = true;
+                                                        last = Some(SymbolKind::Variable(f.clone()));
+                                                        break;
+                                                    }
+                                                }
+                                            }
+
+                                            // So here, we have already read "get.name". The problem is that later in the code we are checking if get.name exists in get.name
+                                            // since thats what we're setting last to be. We need to check if the variable found is the same as get.name.
+                                            if !found {
+                                                self.fatal(
+                                                    format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
+                                                    get.name.pos.start_line,
+                                                    get.name.pos.start_pos,
+                                                    None
+                                                );
+                                            } else {
+                                                if let Some(ref l) = last {
+                                                    match l {
+                                                        SymbolKind::Variable(v) => {
+                                                            let name = match &v.name.kind {
+                                                                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                                _ => unreachable!()
+                                                            };
+                                                            if name == get_name {
+                                                                return TypeOption::None;
+                                                            }
+                                                        }
+                                                        SymbolKind::Method(m) => {
+                                                            let name = match &m.name.kind {
+                                                                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                                _ => unreachable!()
+                                                            };
+                                                            if name == get_name {
+                                                                return TypeOption::None;
+                                                            }
+                                                        }
+                                                        _ => {}
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        SymbolKind::Enum(e) => {
+                                            if is_call {
+                                                for m in &e.methods {
+                                                    let name = match &m.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+                                                    if name == get_name {
+                                                        found = true;
+                                                        last = Some(SymbolKind::Method(m.clone()));
+                                                        break;
+                                                    }
+                                                }
+                                            } else {
+                                                for v in &e.variants {
+                                                    let name = match &v.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+                                                    if name == get_name {
+                                                        found = true;
+                                                        last = Some(SymbolKind::Constant(v.clone()));
+                                                        break;
+                                                    }
+                                                }
+                                            }
+
+                                            if !found {
+                                                self.fatal(
+                                                    format!("Name '{}' does not exist in field of type {}.", get_name, ty.to_string()).as_str(),
+                                                    get.name.pos.start_line,
+                                                    get.name.pos.start_pos,
+                                                    None
+                                                );
+                                            }
+                                        }
+                                        _ => {
+                                            unreachable!()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        SymbolKind::Method(f) => {
+                            let t = f.type_.clone();
+                            if t.is_primitive() {
+                                if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
+                                    return TypeOption::None;
+                                } else {
+                                    self.fatal(
+                                        format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
+                                        get.name.pos.start_line,
+                                        get.name.pos.start_pos,
+                                        None
+                                    );
+                                }
+                            } else {
+                                let ty = f.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
+                                let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
+
+                                if x.is_some() {
+                                    let t = x.unwrap();
+                                    match t.kind {
+                                        SymbolKind::Struct(s) => {
+                                            if is_call {
+                                                for m in &s.methods {
+                                                    let name = match &m.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+                                                    if name == get_name {
+                                                        return TypeOption::None;
+                                                    }
+                                                }
+                                            } else {
+                                                for f in &s.fields {
+                                                    let name = match &f.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+                                                    if name == get_name {
+                                                        return TypeOption::None;
+                                                    }
+                                                }
+                                            }
+
+                                            self.fatal(
+                                                format!("Name '{}' does not exist in field of type {}.", get_name, ty.to_string()).as_str(),
+                                                get.name.pos.start_line,
+                                                get.name.pos.start_pos,
+                                                None
+                                            );
+                                        }
+                                        SymbolKind::Enum(e) => {
+                                            if is_call {
+                                                for m in &e.methods {
+                                                    let name = match &m.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+                                                    if name == get_name {
+                                                        return TypeOption::None;
+                                                    }
+                                                }
+                                            } else {
+                                                for v in &e.variants {
+                                                    let name = match &v.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+                                                    if name == get_name {
+                                                        return TypeOption::None;
+                                                    }
+                                                }
+                                            }
+
+                                            self.fatal(
+                                                format!("Name '{}' does not exist in field of type {}.", get_name, ty.to_string()).as_str(),
+                                                get.name.pos.start_line,
+                                                get.name.pos.start_pos,
+                                                None
+                                            );
+                                        }
+                                        _ => unreachable!()
+                                    }
+                                }
+                            }
+                        }
+                        SymbolKind::Struct(s) => {
+                            if is_call {
+                                for m in &s.methods {
+                                    let name = match &m.name.kind {
+                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                        _ => unreachable!()
+                                    }; // TODO: Fix call checking. Currently, only certain calls will work.
+                                        // TODO: Fix access modifiers. We are not checking if the method/attribute is public.
+                                        // 
+                                    if name == get_name && m.type_.modifiers.is_static { 
+                                        return TypeOption::None;
+                                    }
+                                }
+                            } else {
+                                for f in &s.fields {
+                                    let name = match &f.name.kind {
+                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                        _ => unreachable!()
+                                    };
+                                    if name == get_name && f.type_.modifiers.is_static {
+                                        return TypeOption::None;
+                                    }
+                                }
+                            }
+
+                            self.fatal(
+                                format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
+                                get.name.pos.start_line,
+                                get.name.pos.start_pos,
+                                Some(vec![
+                                    "Did you forget to initialise the object?".to_string()
+                                ])
+                            );
+                        }
+                        SymbolKind::Enum(e) => {
+                            if is_call {
+                                for m in &e.methods {
+                                    let name = match &m.name.kind {
+                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                        _ => unreachable!()
+                                    };
+                                    if name == get_name {
+                                        return TypeOption::None;
+                                    }
+                                }
+                            } else {
+                                for v in &e.variants {
+                                    let name = match &v.name.kind {
+                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                        _ => unreachable!()
+                                    };
+                                    if name == get_name {
+                                        return TypeOption::None;
+                                    }
+                                }
+                            }
+
+                            self.fatal(
+                                format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
+                                get.name.pos.start_line,
+                                get.name.pos.start_pos,
+                                None
+                            );
+                        }
+                        SymbolKind::Type(t) => {
+                            // TODO: Static methods
+                            if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
+                                return TypeOption::None;
+                            } else {
+                                self.fatal(
+                                    format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
+                                    get.name.pos.start_line,
+                                    get.name.pos.start_pos,
+                                    None
+                                );
+                            }
+                        }
+
+                        _ => unreachable!()
+                    }
+                }
+            }
+            ExpressionKind::Get(g) => {
+                let get_parts = self.symtable.get_to_list(*g.clone(), &mut self.clone());
+                let mut obj = self.symtable.current().unwrap().find(get_parts[0].0.clone()).unwrap().kind;
+
+                for i in 0..get_parts.len() {
+                    let get_name: String;
+                    let is_call: bool;
+                    if i == get_parts.len() - 1 {
+                        break;
+                    } else {
+                        get_name = get_parts[i + 1].0.clone();
+                        is_call = get_parts[i + 1].1;
+                    }
+
+                    match obj.clone() {
+                        SymbolKind::Constant(c) | SymbolKind::Variable(c) => {
+                            let t = c.type_.clone();
+                            if t.is_primitive() {
+                                if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
+                                    obj = t.get_name(get_name.clone());
+                                    break;
+                                } else {
+                                    self.fatal(
+                                        format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
+                                        get.name.pos.start_line,
+                                        get.name.pos.start_pos,
+                                        None
+                                    );
+                                }
+                            } else {
+                                let ty = c.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
+                                let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
+
+                                if x.is_some() {
+                                    let t = x.unwrap();
+                                    let mut found = false;
+                                    match t.kind {
+                                        SymbolKind::Struct(s) => {
+                                            if is_call {
+                                                for m in &s.methods {
+                                                    let name = match &m.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+                                                    if name == get_name {
+                                                        obj = SymbolKind::Method(m.clone());
+                                                        found = true;
+                                                        break;
+                                                    }
+                                                }
+                                            } else {
+                                                for f in &s.fields {
+                                                    let name = match &f.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+                                                    if name == get_name {
+                                                        obj = SymbolKind::Variable(f.clone());
+                                                        found = true;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+
+                                            if found { continue }
+                                            self.fatal(
+                                                format!("Name '{}' does not exist in field of type {}.", get_name, ty.to_string()).as_str(),
+                                                get.name.pos.start_line,
+                                                get.name.pos.start_pos,
+                                                None
+                                            );
+                                        }
+                                        SymbolKind::Enum(e) => {
+                                            if is_call {
+                                                for m in &e.methods {
+                                                    let name = match &m.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+                                                    if name == get_name {
+                                                        obj = SymbolKind::Method(m.clone());
+                                                        found = true;
+                                                        break;
+                                                    }
+                                                }
+                                            } else {
+                                                for v in &e.variants {
+                                                    let name = match &v.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+                                                    if name == get_name {
+                                                        obj = SymbolKind::Constant(v.clone());
+                                                        found = true;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+
+                                            if found { continue }
+                                            self.fatal(
+                                                format!("Name '{}' does not exist in field of type {}.", get_name, ty.to_string()).as_str(),
+                                                get.name.pos.start_line,
+                                                get.name.pos.start_pos,
+                                                None
+                                            );
+                                        }
+                                        _ => unreachable!()
+                                    }
+                                }
+                            }
+                        }
+                        SymbolKind::Method(f) => {
+                            let t = f.type_.clone();
+                            if t.is_primitive() {
+                                if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
+                                    obj = t.get_name(get_name.clone());
+                                    break;
+                                } else {
+                                    self.fatal(
+                                        format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
+                                        get.name.pos.start_line,
+                                        get.name.pos.start_pos,
+                                        None
+                                    );
+                                }
+                            } else {
+                                let ty = f.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
+                                let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
+
+                                if x.is_some() {
+                                    let t = x.unwrap();
+                                    let mut found = false;
+                                    match t.kind {
+                                        SymbolKind::Struct(s) => {
+                                            if is_call {
+                                                for m in &s.methods {
+                                                    let name = match &m.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+                                                    if name == get_name {
+                                                        obj = SymbolKind::Method(m.clone());
+                                                        found = true;
+                                                        break;
+                                                    }
+                                                }
+                                            } else {
+                                                for f in &s.fields {
+                                                    let name = match &f.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+                                                    if name == get_name {
+                                                        obj = SymbolKind::Variable(f.clone());
+                                                        found = true;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+
+                                            if found { continue }
+                                            self.fatal(
+                                                format!("Name '{}' does not exist in field of type {}.", get_name, ty.to_string()).as_str(),
+                                                get.name.pos.start_line,
+                                                get.name.pos.start_pos,
+                                                None
+                                            );
+                                        }
+                                        SymbolKind::Enum(e) => {
+                                            if is_call {
+                                                for m in &e.methods {
+                                                    let name = match &m.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+                                                    if name == get_name {
+                                                        obj = SymbolKind::Method(m.clone());
+                                                        found = true;
+                                                        break;
+                                                    }
+                                                }
+                                            } else {
+                                                for v in &e.variants {
+                                                    let name = match &v.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+                                                    if name == get_name {
+                                                        obj = SymbolKind::Constant(v.clone());
+                                                        found = true;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+
+                                            if found { continue }
+                                            self.fatal(
+                                                format!("Name '{}' does not exist in field of type {}.", get_name, ty.to_string()).as_str(),
+                                                get.name.pos.start_line,
+                                                get.name.pos.start_pos,
+                                                None
+                                            );
+                                        }
+                                        _ => unreachable!()
+                                    }
+                                }
+                            }
+                        }
+                        SymbolKind::Struct(s) => {
+                            let mut found = false;
+
+                            if is_call {
+                                for m in &s.methods {
+                                    let name = match &m.name.kind {
+                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                        _ => unreachable!()
+                                    };
+                                    if name == get_name && m.type_.modifiers.is_static {
+                                        obj = SymbolKind::Method(m.clone());
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                            } else {
+                                for f in &s.fields {
+                                    let name = match &f.name.kind {
+                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                        _ => unreachable!()
+                                    };
+                                    if name == get_name && f.type_.modifiers.is_static {
+                                        obj = SymbolKind::Variable(f.clone());
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if found { continue }
+                            self.fatal(
+                                format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
+                                get.name.pos.start_line,
+                                get.name.pos.start_pos,
+                                None
+                            );
+                        }
+                        SymbolKind::Enum(e) => {
+                            let mut found = false;
+                            if is_call {
+                                for m in &e.methods {
+                                    let name = match &m.name.kind {
+                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                        _ => unreachable!()
+                                    };
+                                    if name == get_name {
+                                        obj = SymbolKind::Method(m.clone());
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                            } else {
+                                for v in &e.variants {
+                                    let name = match &v.name.kind {
+                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                        _ => unreachable!()
+                                    };
+                                    if name == get_name {
+                                        obj = SymbolKind::Constant(v.clone());
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if found { continue }
+                            self.fatal(
+                                format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
+                                get.name.pos.start_line,
+                                get.name.pos.start_pos,
+                                None
+                            );
+                        }
+                        SymbolKind::Type(t) => {
+                            // TODO: implement static methods
+                            if t.is_primitive() {
+                                if t.contains_name(get_name.clone()) {
+                                    obj = t.get_name(get_name.clone());
+                                } else {
+                                    self.error(
+                                        format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
+                                        get.name.pos.start_line,
+                                        get.name.pos.start_pos,
+                                        None
+                                    );
+                                }
+                            } else {
+                                let ty = t.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
+                                let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
+                                if x.is_some() {
+                                    let t_ = x.unwrap();
+                                    let mut found = false;
+
+                                    match t_.kind {
+                                        SymbolKind::Struct(s) => {
+                                            if is_call {
+                                                for m in &s.methods {
+                                                    let name = match &m.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+                                                    if name == get_name {
+                                                        obj = SymbolKind::Method(m.clone());
+                                                        found = true;
+                                                        break;
+                                                    }
+                                                }
+                                            } else {
+                                                for f in &s.fields {
+                                                    let name = match &f.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+                                                    if name == get_name {
+                                                        obj = SymbolKind::Variable(f.clone());
+                                                        found = true;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+
+                                            if found { continue }
+                                            self.fatal(
+                                                format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
+                                                get.name.pos.start_line,
+                                                get.name.pos.start_pos,
+                                                None
+                                            );
+                                        }
+                                        SymbolKind::Enum(e) => {
+                                            if is_call {
+                                                for m in &e.methods {
+                                                    let name = match &m.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+                                                    if name == get_name {
+                                                        obj = SymbolKind::Method(m.clone());
+                                                        found = true;
+                                                        break;
+                                                    }
+                                                }
+                                            } else {
+                                                for v in &e.variants {
+                                                    let name = match &v.name.kind {
+                                                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                        _ => unreachable!()
+                                                    };
+                                                    if name == get_name {
+                                                        obj = SymbolKind::Constant(v.clone());
+                                                        found = true;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+
+                                            if found { continue }
+                                            self.fatal(
+                                                format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
+                                                get.name.pos.start_line,
+                                                get.name.pos.start_pos,
+                                                None
+                                            );
+                                        }
+                                        _ => unreachable!()
+                                    }
+                                }
+                            }
+                        }
+                        _ => { unreachable!() }
+                    }
+                }
+
+                last = Some(obj);
+            }
+            ExpressionKind::Call(c) => {
+                c.accept(self);
+            }
+            ExpressionKind::StructInit(s) => {
+                s.accept(self);
+            }
+            _ => {}
+        }
+
+        // TODO: Implement StructInit
+        // TODO: Static Attributes
+        // TODO: Index, Set.
+        // Last = p, next it should go to a call and then another get.
+        if last.is_some() {
+            match get.name.kind.clone() {
+                ExpressionKind::Identifier(id) => {
+                    let get_name = id.name.lexeme.clone();
+                    match &last.unwrap() {
+                        SymbolKind::Constant(c) | SymbolKind::Variable(c) => {
+                            let t = c.type_.clone();
+                            if t.is_primitive() {
+                                if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
+                                    return TypeOption::None;
+                                } else {
+                                    self.fatal(
+                                        format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
+                                        get.name.pos.start_line,
+                                        get.name.pos.start_pos,
+                                        None
+                                    );
+                                }
+                            } else {
+                                let ty = c.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
+                                let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
+
+                                if x.is_some() {
+                                    let t = x.unwrap();
+                                    let found = false;
+                                    match t.kind {
+                                        SymbolKind::Struct(s) => {
+                                            for m in &s.methods {
+                                                let name = match &m.name.kind {
+                                                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                    _ => unreachable!()
+                                                };
+                                                if name == get_name {
+                                                    return TypeOption::None;
+                                                }
+                                            }
+                                            for f in &s.fields {
+                                                let name = match &f.name.kind {
+                                                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                    _ => unreachable!()
+                                                };
+                                                if name == get_name {
+                                                    return TypeOption::None;
+                                                }
+                                            }
+
+                                            if found { return TypeOption::None }
+                                            self.fatal(
+                                                format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
+                                                get.name.pos.start_line,
+                                                get.name.pos.start_pos,
+                                                None
+                                            );
+                                        }
+                                        SymbolKind::Enum(e) => {
+                                            for m in &e.methods {
+                                                let name = match &m.name.kind {
+                                                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                    _ => unreachable!()
+                                                };
+                                                if name == get_name {
+                                                    return TypeOption::None;
+                                                }
+                                            }
+                                            for v in &e.variants {
+                                                let name = match &v.name.kind {
+                                                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                    _ => unreachable!()
+                                                };
+                                                if name == get_name {
+                                                    return TypeOption::None;
+                                                }
+                                            }
+                                        }
+                                        _ => {
+                                            unreachable!()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        SymbolKind::Method(f) => {
+                            let t = f.type_.clone();
+                            if t.is_primitive() {
+                                if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
+                                    return TypeOption::None;
+                                } else {
+                                    self.fatal(
+                                        format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
+                                        get.name.pos.start_line,
+                                        get.name.pos.start_pos,
+                                        None
+                                    );
+                                }
+                            } else {
+                                let ty = f.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
+                                let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
+
+                                if x.is_some() {
+                                    let t = x.unwrap();
+                                    let found = false;
+                                    match t.kind {
+                                        SymbolKind::Struct(s) => {
+                                            for m in &s.methods {
+                                                let name = match &m.name.kind {
+                                                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                    _ => unreachable!()
+                                                };
+                                                if name == get_name {
+                                                    return TypeOption::None;
+                                                }
+                                            }
+                                            for f in &s.fields {
+                                                let name = match &f.name.kind {
+                                                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                    _ => unreachable!()
+                                                };
+                                                if name == get_name {
+                                                    return TypeOption::None;
+                                                }
+                                            }
+
+                                            if found { return TypeOption::None }
+                                            self.fatal(
+                                                format!("Name '{}' does not exist in field of type {}.", get_name, ty.to_string()).as_str(),
+                                                get.name.pos.start_line,
+                                                get.name.pos.start_pos,
+                                                None
+                                            );
+                                        }
+                                        SymbolKind::Enum(e) => {
+                                            for m in &e.methods {
+                                                let name = match &m.name.kind {
+                                                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                    _ => unreachable!()
+                                                };
+                                                if name == get_name {
+                                                    return TypeOption::None;
+                                                }
+                                            }
+                                            for v in &e.variants {
+                                                let name = match &v.name.kind {
+                                                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                    _ => unreachable!()
+                                                };
+                                                if name == get_name {
+                                                    return TypeOption::None;
+                                                }
+                                            }
+
+                                            if found { return TypeOption::None }
+                                            self.fatal(
+                                                format!("Name '{}' does not exist in field of type {}.", get_name, ty.to_string()).as_str(),
+                                                get.name.pos.start_line,
+                                                get.name.pos.start_pos,
+                                                None
+                                            );
+                                        }
+                                        _ => unreachable!()
+                                    }
+                                }
+                            }
+                        }
+                        SymbolKind::Struct(s) => {
+                            for m in &s.methods {
+                                let name = match &m.name.kind {
+                                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                    _ => unreachable!()
+                                };
+                                if name == get_name && m.type_.modifiers.is_static {
+                                    return TypeOption::None;
+                                }
+                            }
+                            for f in &s.fields {
+                                let name = match &f.name.kind {
+                                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                    _ => unreachable!()
+                                };
+                                if name == get_name && f.type_.modifiers.is_static {
+                                    return TypeOption::None;
+                                }
+                            }
+
+                            self.fatal(
+                                format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
+                                get.name.pos.start_line,
+                                get.name.pos.start_pos,
+                                None
+                            );
+                        }
+                        SymbolKind::Enum(e) => {
+                            let found = false;
+                            for v in &e.variants {
+                                let name = match &v.name.kind {
+                                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                    _ => unreachable!()
+                                };
+                                if name == get_name {
+                                    return TypeOption::None;
+                                }
+                            }
+                            for m in &e.methods {
+                                let name = match &m.name.kind {
+                                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                    _ => unreachable!()
+                                };
+                                if name == get_name {
+                                    return TypeOption::None;
+                                }
+                            }
+
+                            if found { return TypeOption::None }
+                            self.fatal(
+                                format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
+                                get.name.pos.start_line,
+                                get.name.pos.start_pos,
+                                None
+                            );
+                        }
+                        SymbolKind::Type(t) => {
+                            if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
+                                return TypeOption::None;
+                            } else {
+                                self.fatal(
+                                    format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
+                                    get.name.pos.start_line,
+                                    get.name.pos.start_pos,
+                                    None
+                                );
+                            }
+                        }
+                        _ => unreachable!()
+                    }
+                }
+                ExpressionKind::Call(c) => {
+                    c.accept(self);
+                    let get_name = match c.callee.kind {
+                        ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                        _ => unreachable!()
+                    };
+
+                    match &last.unwrap() {
+                        SymbolKind::Constant(c) | SymbolKind::Variable(c) => {
+                            let t = c.type_.clone();
+                            if t.is_primitive() {
+                                if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
+                                    return TypeOption::None;
+                                } else {
+                                    self.fatal(
+                                        format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
+                                        get.name.pos.start_line,
+                                        get.name.pos.start_pos,
+                                        None
+                                    );
+                                }
+                            } else {
+                                let ty = c.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
+                                let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
+
+                                if x.is_some() {
+                                    let t = x.unwrap();
+                                    match t.kind {
+                                        SymbolKind::Struct(s) => {
+                                            for m in &s.methods {
+                                                let name = match &m.name.kind {
+                                                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                    _ => unreachable!()
+                                                };
+                                                if name == get_name {
+                                                    return TypeOption::None;
+                                                }
+                                            }
+
+                                            self.fatal(
+                                                format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
+                                                get.name.pos.start_line,
+                                                get.name.pos.start_pos,
+                                                None
+                                            );
+                                        }
+                                        SymbolKind::Enum(e) => {
+                                            for m in &e.methods {
+                                                let name = match &m.name.kind {
+                                                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                    _ => unreachable!()
+                                                };
+                                                if name == get_name {
+                                                    return TypeOption::None;
+                                                }
+                                            }
+                            
+                                            self.fatal(
+                                                format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
+                                                get.name.pos.start_line,
+                                                get.name.pos.start_pos,
+                                                None
+                                            );
+                                        }
+                                        _ => {
+                                            unreachable!()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        SymbolKind::Method(f) => {
+                            let t = f.type_.clone();
+                            if t.is_primitive() {
+                                if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
+                                    return TypeOption::None;
+                                } else {
+                                    self.fatal(
+                                        format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
+                                        get.name.pos.start_line,
+                                        get.name.pos.start_pos,
+                                        None
+                                    );
+                                }
+                            } else {
+                                let ty = f.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
+                                let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
+
+                                if x.is_some() {
+                                    let t = x.unwrap();
+                                    match t.kind {
+                                        SymbolKind::Struct(s) => {
+                                            for m in &s.methods {
+                                                let name = match &m.name.kind {
+                                                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                    _ => unreachable!()
+                                                };
+                                                if name == get_name {
+                                                    return TypeOption::None;
+                                                }
+                                            }
+
+                                            self.fatal(
+                                                format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
+                                                get.name.pos.start_line,
+                                                get.name.pos.start_pos,
+                                                None
+                                            );
+                                        }
+                                        SymbolKind::Enum(e) => {
+                                            for m in &e.methods {
+                                                let name = match &m.name.kind {
+                                                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                    _ => unreachable!()
+                                                };
+                                                if name == get_name {
+                                                    return TypeOption::None;
+                                                }
+                                            }
+                            
+                                            self.fatal(
+                                                format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
+                                                get.name.pos.start_line,
+                                                get.name.pos.start_pos,
+                                                None
+                                            );
+                                        }
+                                        _ => {
+                                            unreachable!()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        SymbolKind::Struct(s) => {
+                            for m in &s.methods {
+                                let name = match &m.name.kind {
+                                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                    _ => unreachable!()
+                                };
+                                if name == get_name && m.type_.modifiers.is_static {
+                                    return TypeOption::None;
+                                }
+                            }
+
+                            self.fatal(
+                                format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
+                                get.name.pos.start_line,
+                                get.name.pos.start_pos,
+                                None
+                            );
+                        }
+                        SymbolKind::Enum(e) => {
+                            for m in &e.methods {
+                                let name = match &m.name.kind {
+                                    ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                    _ => unreachable!()
+                                };
+                                if name == get_name {
+                                    return TypeOption::None;
+                                }
+                            }
+
+                            self.fatal(
+                                format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
+                                get.name.pos.start_line,
+                                get.name.pos.start_pos,
+                                None
+                            );
+                        }
+                        SymbolKind::Type(t) => {
+                            if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
+                                return TypeOption::None;
+                            } else {
+                                self.fatal(
+                                    format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
+                                    get.name.pos.start_line,
+                                    get.name.pos.start_pos,
+                                    None
+                                );
+                            }
+                        }
+                        _ => unreachable!()
                     }
                 }
                 ExpressionKind::Get(g) => {
-                    let parts = self.symtable.get_to_list(*g.clone(), &mut self.clone());
-                    let mut obj = self.symtable.current().unwrap().find(parts[0].0.clone()).unwrap().kind;
-    
-                    for i in 0..parts.len() - 1 {
-                        let next_get = &parts[i + 1];
-                        obj = match obj {
-                            SymbolKind::Constant(ref c) | SymbolKind::Variable(ref c) => {
-                                self.process_chained_variable_or_constant(c, next_get)
+                    let get_parts = self.symtable.get_to_list(*g.clone(), &mut self.clone());
+                    let mut obj = last.unwrap();
+
+                    for i in 0..get_parts.len() {
+                        let get_name: String;
+                        let is_call: bool;
+
+                        // if i == get_parts.len() - 1 || i == 0 {
+                        //     println!("i: {}", i);
+                        //     println!("get_parts: {:?}", get_parts);
+                        //     println!("get_parts[i]: {:?}", get_parts[i]);
+                        //     println!("{:?}", obj);
+                        //     get_name = get_parts[i].0.clone();
+                        //     is_call = get_parts[i].1;
+                        // } else if i > 0 {
+                        //     println!("i: {}", i);
+                        //     println!("get_parts: {:?}", get_parts);
+                        //     println!("get_parts[i+1]: {:?}", get_parts[i+1]);
+                        //     println!("{:?}", obj);
+                        //     get_name = get_parts[i + 1].0.clone();
+                        //     is_call = get_parts[i + 1].1;
+                        // } else {
+                        //     get_name = get_parts[i].0.clone();
+                        //     is_call = get_parts[i].1;
+                        // }
+
+                        get_name = get_parts[i].0.clone();
+                        is_call = get_parts[i].1;
+
+                        match obj.clone() {
+                            SymbolKind::Constant(c) | SymbolKind::Variable(c) => {
+                                let t = c.type_.clone();
+                                if t.is_primitive() {
+                                    if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
+                                        // obj = t.get_name(get_name.clone());
+                                        break;
+                                    } else {
+                                        self.fatal(
+                                            format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
+                                            get.name.pos.start_line,
+                                            get.name.pos.start_pos,
+                                            None
+                                        );
+                                    }
+                                } else {
+                                    let ty = c.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
+                                    let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
+
+                                    if x.is_some() {
+                                        let t = x.unwrap();
+                                        let mut found = false;
+                                        match t.kind {
+                                            SymbolKind::Struct(s) => {
+                                                if is_call {
+                                                    for m in &s.methods {
+                                                        let name = match &m.name.kind {
+                                                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                            _ => unreachable!()
+                                                        };
+                                                        if name == get_name {
+                                                            obj = SymbolKind::Method(m.clone());
+                                                            found = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                } else {
+                                                    for f in &s.fields {
+                                                        let name = match &f.name.kind {
+                                                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                            _ => unreachable!()
+                                                        };
+                                                        if name == get_name {
+                                                            obj = SymbolKind::Variable(f.clone());
+                                                            found = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+
+                                                if found { continue }
+                                                self.fatal(
+                                                    format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
+                                                    get.name.pos.start_line,
+                                                    get.name.pos.start_pos,
+                                                    None
+                                                );
+                                            }
+                                            SymbolKind::Enum(e) => {
+                                                if is_call {
+                                                    for m in &e.methods {
+                                                        let name = match &m.name.kind {
+                                                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                            _ => unreachable!()
+                                                        };
+                                                        if name == get_name {
+                                                            obj = SymbolKind::Method(m.clone());
+                                                            found = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                } else {
+                                                    for v in &e.variants {
+                                                        let name = match &v.name.kind {
+                                                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                            _ => unreachable!()
+                                                        };
+                                                        if name == get_name {
+                                                            obj = SymbolKind::Constant(v.clone());
+                                                            found = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+
+                                                if found { continue }
+                                                self.fatal(
+                                                    format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
+                                                    get.name.pos.start_line,
+                                                    get.name.pos.start_pos,
+                                                    None
+                                                );
+                                            }
+                                            _ => unreachable!()
+                                        }
+                                    }
+                                }
                             }
-                            SymbolKind::Method(ref f) => {
-                                self.process_chained_method(f, next_get)
+                            SymbolKind::Method(f) => {
+                                let t = f.type_.clone();
+                                if t.is_primitive() {
+                                    if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
+                                        // obj = t.get_name(get_name.clone());
+                                        break;
+                                    } else {
+                                        self.fatal(
+                                            format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
+                                            get.name.pos.start_line,
+                                            get.name.pos.start_pos,
+                                            None
+                                        );
+                                    }
+                                } else {
+                                    let ty = f.type_.to_string().split(" ").collect::<Vec<&str>>()[1].to_string();
+                                    let x = self.symtable.current().unwrap().get_struct_or_enum_by_name(ty.clone());
+
+                                    if x.is_some() {
+                                        let t = x.unwrap();
+                                        let mut found = false;
+                                        match t.kind {
+                                            SymbolKind::Struct(s) => {
+                                                if is_call {
+                                                    for m in &s.methods {
+                                                        let name = match &m.name.kind {
+                                                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                            _ => unreachable!()
+                                                        };
+                                                        if name == get_name {
+                                                            obj = SymbolKind::Method(m.clone());
+                                                            found = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                } else {
+                                                    for f in &s.fields {
+                                                        let name = match &f.name.kind {
+                                                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                            _ => unreachable!()
+                                                        };
+                                                        if name == get_name {
+                                                            obj = SymbolKind::Variable(f.clone());
+                                                            found = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+
+                                                if found { continue }
+                                                self.fatal(
+                                                    format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
+                                                    get.name.pos.start_line,
+                                                    get.name.pos.start_pos,
+                                                    None
+                                                );
+                                            }
+                                            SymbolKind::Enum(e) => {
+                                                if is_call {
+                                                    for m in &e.methods {
+                                                        let name = match &m.name.kind {
+                                                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                            _ => unreachable!()
+                                                        };
+                                                        if name == get_name {
+                                                            obj = SymbolKind::Method(m.clone());
+                                                            found = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                } else {
+                                                    for v in &e.variants {
+                                                        let name = match &v.name.kind {
+                                                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                                            _ => unreachable!()
+                                                        };
+                                                        if name == get_name {
+                                                            obj = SymbolKind::Constant(v.clone());
+                                                            found = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+
+                                                if found { continue }
+                                                self.fatal(
+                                                    format!("Name '{}' does not exist in field of type {}.", get_name, ty).as_str(),
+                                                    get.name.pos.start_line,
+                                                    get.name.pos.start_pos,
+                                                    None
+                                                );
+                                            }
+                                            _ => unreachable!()
+                                        }
+                                    }
+                                }
                             }
-                            SymbolKind::Struct(ref _s) => {
-                                self.process_chained_struct_or_enum(&obj, next_get)
+                            SymbolKind::Struct(s) => {
+                                let mut found = false;
+
+                                if is_call {
+                                    for m in &s.methods {
+                                        let name = match &m.name.kind {
+                                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                            _ => unreachable!()
+                                        };
+                                        if name == get_name && m.type_.modifiers.is_static {
+                                            obj = SymbolKind::Method(m.clone());
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+                                } else {
+                                    for f in &s.fields {
+                                        let name = match &f.name.kind {
+                                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                            _ => unreachable!()
+                                        };
+                                        if name == get_name && f.type_.modifiers.is_static {
+                                            obj = SymbolKind::Variable(f.clone());
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if found { continue }
+                                self.fatal(
+                                    format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
+                                    get.name.pos.start_line,
+                                    get.name.pos.start_pos,
+                                    None
+                                );
                             }
-                            SymbolKind::Enum(ref _e) => {
-                                self.process_chained_struct_or_enum(&obj, next_get)
+                            SymbolKind::Enum(e) => {
+                                let mut found = false;
+                                if is_call {
+                                    for m in &e.methods {
+                                        let name = match &m.name.kind {
+                                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                            _ => unreachable!()
+                                        };
+                                        if name == get_name {
+                                            obj = SymbolKind::Method(m.clone());
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+                                } else {
+                                    for v in &e.variants {
+                                        let name = match &v.name.kind {
+                                            ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                            _ => unreachable!()
+                                        };
+                                        if name == get_name {
+                                            obj = SymbolKind::Constant(v.clone());
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+
+                                    if found { continue }
+                                    self.fatal(
+                                        format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
+                                        get.name.pos.start_line,
+                                        get.name.pos.start_pos,
+                                        None
+                                    );
+                                }
+
+                                if found { continue }
+                                self.fatal(
+                                    format!("Name '{}' does not exist in '{}'.", get_name, object_name).as_str(),
+                                    get.name.pos.start_line,
+                                    get.name.pos.start_pos,
+                                    None
+                                );
                             }
-                            _ => unreachable!(),
-                        };
+                            SymbolKind::Type(t) => {
+                                if self.symtable.primitive_type_contains_name(t.clone(), get_name.clone()) {
+                                    return TypeOption::None;
+                                } else {
+                                    self.fatal(
+                                        format!("Name '{}' does not exist in type '{}'.", get_name, t.to_string()).as_str(),
+                                        get.name.pos.start_line,
+                                        get.name.pos.start_pos,
+                                        None
+                                    );
+                                }
+                            }
+                            _ => unreachable!()
+                        }
                     }
-    
-                    current_object = &g.object;
-                    get_name_info = self.resolve_get_name_info(&g.name.kind);
                 }
-                _ => unreachable!(),
-            }
-    
-            if let ExpressionKind::Get(_) = &current_object.kind {
-                continue;
-            } else {
-                break;
+                _ => unreachable!()
             }
         }
-    
-        // Process the final part
-        match &current_object.kind {
-            ExpressionKind::Identifier(id) => {
-                self.process_symbol(&id.name.lexeme, &get_name_info);
-            }
-            _ => unreachable!(),
-        }
-    
+
         TypeOption::None
     }
-    
 
     fn visit_set(&mut self, set: &Set) -> TypeOption {
         set.object.accept(self);
@@ -2947,9 +2524,81 @@ impl Visitor for Resolver {
 
     fn visit_type(&mut self, type_: &Type) -> TypeOption {
         let name = type_.to_string().split(" ").last().unwrap().to_string();
-
         if type_.is_primitive() {
             return TypeOption::Type(type_.clone());
+        }
+
+        if name.contains(".") {
+            let parent = name.split(".").collect::<Vec<&str>>()[0].to_string();
+            let name = name.split(".").collect::<Vec<&str>>()[1].to_string();
+            let x = self.symtable.current().unwrap().get_module(parent.clone());
+
+            if let Some(m) = x {
+                for e in m.exported_symbols {
+                    match e.kind {
+                        SymbolKind::Type(t) => {
+                            if t.to_string() == name {
+                                return TypeOption::Type(t.clone());
+                            }
+                        }
+                        SymbolKind::Struct(s) => {
+                            let s_name = match s.name.kind {
+                                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                _ => unreachable!()
+                            };
+
+                            if s_name == name {
+                                return TypeOption::Type(s.type_.clone());
+                            }
+                        }
+                        SymbolKind::Enum(e) => {
+                            let e_name = match e.name.kind {
+                                ExpressionKind::Identifier(id) => id.name.lexeme.clone(),
+                                _ => unreachable!()
+                            };
+
+                            if e_name == name {
+                                return TypeOption::Type(e.type_.clone());
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+                let x = self.symtable.suggest(name.clone());
+                if x.is_some() {
+                    self.error(
+                        format!("Type '{}' does not exist.", name).as_str(),
+                        type_.pos.start_line,
+                        type_.pos.start_pos,
+                        Some(vec![format!("Did you mean '{}'?", x.unwrap())])
+                    );
+                } else {
+                    self.error(
+                        format!("Type '{}' does not exist.", name).as_str(),
+                        type_.pos.start_line,
+                        type_.pos.start_pos,
+                        None
+                    );
+                }
+            } else {
+                let x = self.symtable.suggest(name.clone());
+                if x.is_some() {
+                    self.error(
+                        format!("Type '{}' does not exist.", name).as_str(),
+                        type_.pos.start_line,
+                        type_.pos.start_pos,
+                        Some(vec![format!("Did you mean '{}'?", x.unwrap())])
+                    );
+                } else {
+                    self.error(
+                        format!("Type '{}' does not exist.", name).as_str(),
+                        type_.pos.start_line,
+                        type_.pos.start_pos,
+                        None
+                    );
+                }
+            }
         }
 
         if self.symtable.current().unwrap().get_type_by_name(name.clone()).is_none() {

@@ -894,14 +894,14 @@ Some(
                                                                                                 name: Expression {
                                                                                                     kind: Identifier(
                                                                                                         Identifier {
-                                                                                                            name: Identifier 'ORANGE' (at 28:50),
+                                                                                                            name: Identifier 'RED' (at 28:47),
                                                                                                         },
                                                                                                     ),
                                                                                                     pos: Position {
                                                                                                         start_line: 28,
                                                                                                         end_line: 28,
-                                                                                                        start_pos: 50,
-                                                                                                        end_pos: 50,
+                                                                                                        start_pos: 47,
+                                                                                                        end_pos: 47,
                                                                                                     },
                                                                                                 },
                                                                                             },
@@ -909,8 +909,8 @@ Some(
                                                                                         pos: Position {
                                                                                             start_line: 28,
                                                                                             end_line: 28,
-                                                                                            start_pos: 50,
-                                                                                            end_pos: 50,
+                                                                                            start_pos: 47,
+                                                                                            end_pos: 47,
                                                                                         },
                                                                                     },
                                                                                 ],
@@ -920,7 +920,7 @@ Some(
                                                                             start_line: 28,
                                                                             end_line: 28,
                                                                             start_pos: 30,
-                                                                            end_pos: 51,
+                                                                            end_pos: 48,
                                                                         },
                                                                     },
                                                                 },
@@ -929,7 +929,7 @@ Some(
                                                                 start_line: 28,
                                                                 end_line: 28,
                                                                 start_pos: 29,
-                                                                end_pos: 51,
+                                                                end_pos: 48,
                                                             },
                                                         },
                                                     ),
@@ -962,7 +962,7 @@ Some(
                                                 start_line: 28,
                                                 end_line: 28,
                                                 start_pos: 14,
-                                                end_pos: 52,
+                                                end_pos: 49,
                                             },
                                         },
                                         Statement {

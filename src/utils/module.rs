@@ -21,6 +21,8 @@ pub struct MatchaModule {
 
     pub path: String,
     pub exported_symbols: Vec<Symbol>,
+
+    pub all_symbols: Vec<Symbol>,
 }
 
 pub struct DependencyTable {
